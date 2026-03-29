@@ -126,6 +126,25 @@ function module:step()
             end
             self.registers[args[1]] = rs + imm
         end
+    elseif instruction == "ADD" then
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[ADD:" ..
+                self.instruction_pointer .. "] " .. "Unexpected number of arguments. Expected 3, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[ADD:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = rs + rt
+        end
     elseif instruction == "SUB" then
         if #args ~= 3 then
             self.status.error = true

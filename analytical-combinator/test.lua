@@ -189,6 +189,73 @@ describe("CPU tests", function()
         assert.is_true(myCpu:is_halted())
     end)
 
+    it("can ADD two registers", function()
+        local code = {
+            "ADDI x10, x0, 37",
+            "ADDI x11, x0, 25",
+            "ADD  x12, x10, x11",
+            "HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+
+        assert.are.equal(62, myCpu:get_register("x12"))
+        assert.is_true(myCpu:is_halted())
+    end)
+
+    it("ADD accumulates in place", function()
+        local code = {
+            "ADDI x10, x0, 10",
+            "ADDI x11, x0, 5",
+            "ADD  x10, x10, x11",   -- x10 = 10 + 5
+            "ADD  x10, x10, x11",   -- x10 = 15 + 5
+            "HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+
+        assert.are.equal(20, myCpu:get_register("x10"))
+    end)
+
+    it("ADD write to x0 is silently ignored", function()
+        local code = {
+            "ADDI x10, x0, 7",
+            "ADD  x0, x10, x10",
+            "HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+
+        assert.are.equal(0, myCpu:get_register("x0"))
+        assert.is_false(myCpu.status.error)
+    end)
+
+    it("ADD handles negative values", function()
+        local code = {
+            "ADDI x10, x0, -12",
+            "ADDI x11, x0, 5",
+            "ADD  x12, x10, x11",
+            "HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+
+        assert.are.equal(-7, myCpu:get_register("x12"))
+    end)
+
+    it("ADD with invalid register sets error", function()
+        local myCpu = cpu.new({ "ADD x1, x99, x0" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+        assert.are.equal(1, #myCpu:get_errors())
+    end)
+
+    it("ADD with wrong arg count sets error", function()
+        local myCpu = cpu.new({ "ADD x1, x0" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
     it("can get label name from source code line", function()
         local test_lines = {
             { input = "main:",              expected = "main" },

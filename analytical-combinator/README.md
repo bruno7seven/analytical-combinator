@@ -21,6 +21,7 @@ input (red and green wires) and output circuit network connections.
 | Instruction | Syntax | Description |
 |-------------|--------|-------------|
 | `ADDI` | `rd, rs, imm` | `rd = rs + imm` — add immediate constant |
+| `ADD`  | `rd, rs, rt`  | `rd = rs + rt`  — add two registers |
 | `SUB`  | `rd, rs, rt`  | `rd = rs - rt`  — subtract register |
 
 ### Comparison

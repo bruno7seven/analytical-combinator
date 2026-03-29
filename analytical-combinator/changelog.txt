@@ -1,4 +1,17 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.2
+Date: 29. 03. 2026
+  Features:
+    - Added ADD instruction: ADD rd, rs, rt sets rd = rs + rt (register + register addition).
+      This is the missing complement to SUB and ADDI. Useful for combining values from two
+      sources, e.g. summing red and green wire readings of the same signal.
+      Example: RSIGR x10, iron-plate / RSIGG x11, iron-plate / ADD x12, x10, x11
+    - Added 6 tests for ADD covering basic addition, accumulation in place, x0 write
+      suppression, negative values, invalid register, and wrong argument count.
+    - README: ADD added to instruction table; new example showing red+green signal sum
+      with threshold gate.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.1
 Date: 29. 03. 2026
   Features:
