@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.3
+Date: 29. 03. 2026
+  Bugfixes:
+    - Fixed README: the "Red/green mixer" example was using SUB (red minus green) despite
+      claiming to output a sum. Replaced with two correct ADD-based examples:
+      "Red/green signal sum" (continuous summing loop) and "Red/green sum with threshold gate"
+      (fires signal-A once combined total exceeds 500).
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.2
 Date: 29. 03. 2026
   Features:

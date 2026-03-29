@@ -98,19 +98,35 @@ poll:
     HLT
 ```
 
-### Red/green mixer
+### Red/green signal sum
 
-Reads values from both wires and outputs their sum.
+Reads a signal from both wires each tick and outputs their sum. Useful
+when two separate parts of a factory each report a count on different
+wire colours and you want a combined total.
 
 ```
 loop:
-    RSIGR x10, signal-A         # Red wire: signal-A
-    RSIGG x11, signal-A         # Green wire: signal-A
-    ADDI  x12, x10, 0           # copy x10
-    SUB   x12, x12, x11         # x12 = red - green (just an example)
-    WSIG  o0, signal-A, x12
+    RSIGR x10, iron-plate       # Read iron-plate from red wire
+    RSIGG x11, iron-plate       # Read iron-plate from green wire
+    ADD   x12, x10, x11         # x12 = red + green total
+    WSIG  o0, iron-plate, x12   # Output the combined count
     WAIT  1
     JAL   x0, loop
 ```
 
+### Red/green sum with threshold gate
+
+Same idea, but halts and fires a signal once the combined total exceeds 500.
+
+```
+loop:
+    RSIGR x10, iron-plate       # Read iron-plate from red wire
+    RSIGG x11, iron-plate       # Read iron-plate from green wire
+    ADD   x12, x10, x11         # x12 = red + green total
+    SLTI  x6,  x12, 500         # x6 = 1 if total < 500
+    BNE   x6,  x0,  loop        # Keep polling until threshold met
+    ADDI  x11, x0,  1
+    WSIG  o0,  signal-A, x11    # Emit signal-A = 1
+    HLT
+```
 
