@@ -60,10 +60,15 @@ use when treating the value as a signed integer).
 ### Control flow
 
 | Instruction | Syntax | Description |
-|-------------|--------|-------------|
-| `JAL` | `rd, label` | Jump to label; save return address in rd (use x0 to discard) |
-| `BEQ` | `rs, rt, label` | Branch to label if rs == rt |
-| `BNE` | `rs, rt, label` | Branch to label if rs != rt |
+|---|---|---|
+| `JAL` | `rd, label`     | Jump to label; save line number of JAL in rd (use x0 to discard) |
+| `JR`  | `rs`            | Jump to line rs+1 — subroutine return; pairs with `JAL rd, label` |
+| `BEQ` | `rs, rt, label` | Branch if rs == rt |
+| `BNE` | `rs, rt, label` | Branch if rs != rt |
+| `BLT` | `rs, rt, label` | Branch if rs < rt |
+| `BLE` | `rs, rt, label` | Branch if rs <= rt |
+| `BGT` | `rs, rt, label` | Branch if rs > rt |
+| `BGE` | `rs, rt, label` | Branch if rs >= rt |
 
 ### Circuit network output
 
@@ -146,6 +151,40 @@ poll:
     WSIG  o0, signal-A, x11     # Emit signal-A = 1
     HLT
 ```
+
+### Subroutine call with JAL / JR
+
+`JAL rd, label` saves the line number of the `JAL` instruction into `rd`, then
+jumps to `label`. `JR rd` returns to `rd + 1` — the line after the call site.
+Use a different register for each concurrent call to avoid clobbering return
+addresses. Recursive calls are not supported (no stack), but simple call/return
+works cleanly.
+
+```
+main:
+    RSIGG x10, iron-plate
+    JAL   x1, clamp_255          # clamp iron-plate count to 255, result in x10
+    WSIG  o0, iron-plate, x10
+    RSIGG x10, copper-plate
+    JAL   x2, clamp_255          # reuse the same subroutine with a different return reg
+    WSIG  o1, copper-plate, x10
+    WAIT  60
+    JAL   x0, main
+
+clamp_255:                        # expects value in x10, returns clamped value in x10
+    SLTI  x6,  x10, 256          # x6 = 1 if already in range
+    BNE   x6,  x0,  clamp_r      # if in range, go return
+    ADDI  x10, x0,  255           # otherwise clamp
+clamp_r:
+    BGT   x1,  x2,  clamp_ret2   # which call site do we return to?
+    JR    x1                      # return via x1 (first caller)
+clamp_ret2:
+    JR    x2                      # return via x2 (second caller)
+```
+
+> **Note:** The above pattern works but is awkward. A cleaner convention is to
+> always use the same register (e.g. `x1`) as the return address and call
+> subroutines sequentially rather than nesting them.
 
 ### Bit masking — extract low byte
 

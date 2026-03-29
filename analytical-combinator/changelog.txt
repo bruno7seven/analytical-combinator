@@ -1,4 +1,20 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.7
+Date: 29. 03. 2026
+  Features:
+    - Added BLT rd, rt, label — branch if rs < rt
+    - Added BLE rd, rt, label — branch if rs <= rt
+    - Added BGT rd, rt, label — branch if rs > rt
+    - Added BGE rd, rt, label — branch if rs >= rt
+    - Added JR rs — jump to instruction at rs+1, enabling subroutine returns.
+      JAL saves the line number of the JAL instruction itself, so JR adds 1 to
+      land on the instruction after the call site.
+    - 16 new tests (81 total): branch taken/not-taken cases for all four new
+      instructions, JR call/return, nested calls with distinct return registers,
+      and error cases.
+    - README: control flow table updated; new subroutine call/return example.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.6
 Date: 29. 03. 2026
   Features:

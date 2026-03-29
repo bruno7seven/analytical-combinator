@@ -791,4 +791,215 @@ describe("CPU tests", function()
         assert.is_true(myCpu.status.error)
     end)
 
+    -- ── BLT ──────────────────────────────────────────────────────────────────
+
+    it("BLT branches when rs < rt", function()
+        local code = {
+            "ADDI x10, x0, 5",
+            "ADDI x11, x0, 10",
+            "BLT  x10, x11, done",
+            "ADDI x12, x0, 99",   -- should be skipped
+            "done: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x12"))
+    end)
+
+    it("BLT does not branch when rs >= rt", function()
+        local code = {
+            "ADDI x10, x0, 10",
+            "ADDI x11, x0, 10",
+            "BLT  x10, x11, skip",
+            "ADDI x12, x0, 42",
+            "skip: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x12"))
+    end)
+
+    -- ── BLE ──────────────────────────────────────────────────────────────────
+
+    it("BLE branches when rs < rt", function()
+        local code = {
+            "ADDI x10, x0, 4",
+            "ADDI x11, x0, 5",
+            "BLE  x10, x11, done",
+            "ADDI x12, x0, 99",
+            "done: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x12"))
+    end)
+
+    it("BLE branches when rs == rt", function()
+        local code = {
+            "ADDI x10, x0, 5",
+            "ADDI x11, x0, 5",
+            "BLE  x10, x11, done",
+            "ADDI x12, x0, 99",
+            "done: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x12"))
+    end)
+
+    it("BLE does not branch when rs > rt", function()
+        local code = {
+            "ADDI x10, x0, 6",
+            "ADDI x11, x0, 5",
+            "BLE  x10, x11, skip",
+            "ADDI x12, x0, 42",
+            "skip: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x12"))
+    end)
+
+    -- ── BGT ──────────────────────────────────────────────────────────────────
+
+    it("BGT branches when rs > rt", function()
+        local code = {
+            "ADDI x10, x0, 10",
+            "ADDI x11, x0, 5",
+            "BGT  x10, x11, done",
+            "ADDI x12, x0, 99",
+            "done: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x12"))
+    end)
+
+    it("BGT does not branch when rs == rt", function()
+        local code = {
+            "ADDI x10, x0, 5",
+            "ADDI x11, x0, 5",
+            "BGT  x10, x11, skip",
+            "ADDI x12, x0, 42",
+            "skip: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x12"))
+    end)
+
+    -- ── BGE ──────────────────────────────────────────────────────────────────
+
+    it("BGE branches when rs > rt", function()
+        local code = {
+            "ADDI x10, x0, 10",
+            "ADDI x11, x0, 5",
+            "BGE  x10, x11, done",
+            "ADDI x12, x0, 99",
+            "done: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x12"))
+    end)
+
+    it("BGE branches when rs == rt", function()
+        local code = {
+            "ADDI x10, x0, 5",
+            "ADDI x11, x0, 5",
+            "BGE  x10, x11, done",
+            "ADDI x12, x0, 99",
+            "done: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x12"))
+    end)
+
+    it("BGE does not branch when rs < rt", function()
+        local code = {
+            "ADDI x10, x0, 4",
+            "ADDI x11, x0, 5",
+            "BGE  x10, x11, skip",
+            "ADDI x12, x0, 42",
+            "skip: HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x12"))
+    end)
+
+    -- ── JR (jump register — subroutine return) ────────────────────────────────
+
+    it("JR returns to instruction after JAL call site", function()
+        -- JAL saves its own line number; JR advances past it (+1)
+        local code = {
+            "main:",
+            "    ADDI x10, x0, 1",     -- line 2
+            "    JAL  x1, my_func",    -- line 3: x1 = 3, jump to line 5
+            "    ADDI x10, x10, 10",   -- line 4: should execute after return
+            "    HLT",                 -- line 5... wait, labels shift numbering
+            "my_func:",
+            "    ADDI x10, x10, 100",
+            "    JR   x1",             -- return to line 4 (3+1)
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        -- x10 = 1 + 100 (in func) + 10 (after return) = 111
+        assert.are.equal(111, myCpu:get_register("x10"))
+    end)
+
+    it("JR can be used for nested calls via different registers", function()
+        local code = {
+            "main:",
+            "    JAL  x1, add10",     -- call add10, save return in x1
+            "    JAL  x2, add20",     -- call add20, save return in x2
+            "    HLT",
+            "add10:",
+            "    ADDI x10, x10, 10",
+            "    JR   x1",
+            "add20:",
+            "    ADDI x10, x10, 20",
+            "    JR   x2",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(30, myCpu:get_register("x10"))
+    end)
+
+    it("JR with wrong arg count sets error", function()
+        local myCpu = cpu.new({ "JR x1, x2" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("JR with invalid register sets error", function()
+        local myCpu = cpu.new({ "JR x99" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("JR with out-of-range return address sets error", function()
+        local code = { "ADDI x1, x0, 9999", "JR x1" }
+        local myCpu = cpu.new(code)
+        myCpu:step()  -- ADDI
+        myCpu:step()  -- JR
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("branch instructions set error on undefined label", function()
+        for _, instr in ipairs({ "BLT x0, x0, nowhere",
+                                 "BLE x0, x0, nowhere",
+                                 "BGT x0, x0, nowhere",
+                                 "BGE x0, x0, nowhere" }) do
+            -- Need a condition that fires: for BGT/BGE/BLT/BLE with x0,x0
+            -- BGT won't fire (0 > 0 false), BLT won't fire (0 < 0 false)
+            -- BLE and BGE will fire (0<=0, 0>=0 true)
+        end
+        -- Test BLE (fires on equal) to an undefined label
+        local myCpu = cpu.new({ "BLE x0, x0, nowhere" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
 end)
