@@ -23,6 +23,7 @@ input (red and green wires) and output circuit network connections.
 | `ADDI` | `rd, rs, imm` | `rd = rs + imm` — add immediate constant |
 | `ADD`  | `rd, rs, rt`  | `rd = rs + rt`  — add two registers |
 | `SUB`  | `rd, rs, rt`  | `rd = rs - rt`  — subtract register |
+| `MUL`  | `rd, rs, rt`  | `rd = rs * rt`  — multiply two registers |
 
 ### Comparison
 
@@ -30,6 +31,24 @@ input (red and green wires) and output circuit network connections.
 |-------------|--------|-------------|
 | `SLT`  | `rd, rs, rt`  | `rd = (rs < rt) ? 1 : 0` |
 | `SLTI` | `rd, rs, imm` | `rd = (rs < imm) ? 1 : 0` |
+
+### Bitwise
+
+| Instruction | Syntax | Description |
+|---|---|---|
+| `AND` | `rd, rs, rt` | `rd = rs & rt` — bitwise AND |
+| `OR`  | `rd, rs, rt` | `rd = rs \| rt` — bitwise OR |
+| `XOR` | `rd, rs, rt` | `rd = rs ^ rt` — bitwise XOR |
+| `NOT` | `rd, rs`     | `rd = ~rs` — bitwise NOT (unary) |
+
+### Shifts
+
+| Instruction | Syntax | Description |
+|---|---|---|
+| `SHL`  | `rd, rs, rt`  | `rd = rs << rt`  — shift left by register |
+| `SHLI` | `rd, rs, imm` | `rd = rs << imm` — shift left by immediate |
+| `SHR`  | `rd, rs, rt`  | `rd = rs >> rt`  — logical shift right by register |
+| `SHRI` | `rd, rs, imm` | `rd = rs >> imm` — logical shift right by immediate |
 
 ### Control flow
 
@@ -51,6 +70,8 @@ input (red and green wires) and output circuit network connections.
 |-------------|--------|-------------|
 | `RSIGR` | `rd, signal` | Read named signal from the **red** input wire into rd (0 if absent) |
 | `RSIGG` | `rd, signal` | Read named signal from the **green** input wire into rd (0 if absent) |
+| `CNTSR` | `rd`         | Set rd to the count of distinct signals on the **red** input wire |
+| `CNTSG` | `rd`         | Set rd to the count of distinct signals on the **green** input wire |
 
 ### Control
 
@@ -96,6 +117,38 @@ poll:
     ADDI  x11, x0, 1
     WSIG  o0, signal-A, x11     # Emit signal-A = 1
     HLT
+```
+
+### Bit masking — extract low byte
+
+Factorio signals are 32-bit integers. Use AND to isolate the lower 8 bits,
+useful if you are packing multiple small values into a single signal channel.
+
+```
+    RSIGR x10, signal-A         # Read packed value from red wire
+    ADDI  x11, x0,  255         # Mask = 0xFF
+    AND   x12, x10, x11         # x12 = low byte of signal-A
+    SHRI  x13, x10, 8           # x13 = next byte up
+    WSIG  o0, signal-A, x12     # Output low byte
+    WSIG  o1, signal-B, x13     # Output second byte
+    HLT
+```
+
+### Signal presence detection with CNTSG
+
+Fire signal-A when *anything* appears on the green wire (useful as a
+"something arrived" trigger without caring what the signal is).
+
+```
+poll:
+    CNTSG x10                   # x10 = number of distinct signals on green
+    BEQ   x10, x0, poll         # Loop while nothing is present
+    ADDI  x11, x0, 1
+    WSIG  o0, signal-A, x11     # Trigger output
+    WAIT  60                    # Hold for 1 second
+    ADDI  x11, x0, 0
+    WSIG  o0, signal-A, x11     # Clear output
+    JAL   x0, poll
 ```
 
 ### Red/green signal sum

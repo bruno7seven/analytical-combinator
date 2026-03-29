@@ -351,7 +351,217 @@ function module:step()
             end
             self.registers[args[1]] = self.input_signals.green[args[2]] or 0
         end
-    else
+    elseif instruction == "MUL" then
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[MUL:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[MUL:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = rs * rt
+        end
+    elseif instruction == "AND" then
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[AND:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[AND:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = rs & rt
+        end
+    elseif instruction == "OR" then
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[OR:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[OR:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = rs | rt
+        end
+    elseif instruction == "XOR" then
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[XOR:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[XOR:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = rs ~ rt
+        end
+    elseif instruction == "NOT" then
+        -- Unary bitwise NOT: NOT rd, rs  =>  rd = ~rs
+        if #args ~= 2 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[NOT:" .. self.instruction_pointer .. "] Expected 2 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            if rs == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[NOT:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = ~rs
+        end
+    elseif instruction == "SHL" then
+        -- Shift left by register: SHL rd, rs, rt  =>  rd = rs << rt
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[SHL:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[SHL:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = rs << rt
+        end
+    elseif instruction == "SHLI" then
+        -- Shift left by immediate: SHLI rd, rs, imm  =>  rd = rs << imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[SHLI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs  = self.registers[args[2]]
+            local imm = tonumber(args[3])
+            if rs == nil or imm == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[SHLI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
+                return
+            end
+            self.registers[args[1]] = rs << imm
+        end
+    elseif instruction == "SHR" then
+        -- Logical shift right by register: SHR rd, rs, rt  =>  rd = rs >> rt
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[SHR:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[SHR:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = rs >> rt
+        end
+    elseif instruction == "SHRI" then
+        -- Logical shift right by immediate: SHRI rd, rs, imm  =>  rd = rs >> imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[SHRI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs  = self.registers[args[2]]
+            local imm = tonumber(args[3])
+            if rs == nil or imm == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[SHRI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
+                return
+            end
+            self.registers[args[1]] = rs >> imm
+        end
+    elseif instruction == "CNTSR" then
+        -- Count signals on Red input: CNTSR rd
+        -- Sets rd to the number of distinct signals with non-zero count on the red wire
+        if #args ~= 1 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[CNTSR:" .. self.instruction_pointer .. "] Expected 1 argument, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            if self.registers[args[1]] == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[CNTSR:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
+                return
+            end
+            local count = 0
+            for _, _ in pairs(self.input_signals.red) do
+                count = count + 1
+            end
+            self.registers[args[1]] = count
+        end
+    elseif instruction == "CNTSG" then
+        -- Count signals on Green input: CNTSG rd
+        -- Sets rd to the number of distinct signals with non-zero count on the green wire
+        if #args ~= 1 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[CNTSG:" .. self.instruction_pointer .. "] Expected 1 argument, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            if self.registers[args[1]] == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[CNTSG:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
+                return
+            end
+            local count = 0
+            for _, _ in pairs(self.input_signals.green) do
+                count = count + 1
+            end
+            self.registers[args[1]] = count
+        end
+        else
         if instruction ~= nil then
             table.insert(self.errors, "Unexpected instruction on line " .. self.instruction_pointer .. ": " ..
                 instruction)

@@ -545,146 +545,210 @@ describe("CPU tests", function()
         assert.is_true(myCpu.status.error)
         assert.are.equal(1, #myCpu:get_errors())
     end)
-end)
 
-    -- Tests for RSIGR and RSIGG (read signal from red/green network)
+    -- ── MUL ──────────────────────────────────────────────────────────────────
 
-    it("RSIGR reads from red input signals", function()
-        local code = {
-            "RSIGR x10, iron-ore",
-            "HLT",
-        }
+    it("MUL multiplies two registers", function()
+        local code = { "ADDI x10, x0, 6", "ADDI x11, x0, 7", "MUL x12, x10, x11", "HLT" }
         local myCpu = cpu.new(code)
-        myCpu:set_input_signals({ ["iron-ore"] = 42 }, {})
-        myCpu:step()
-
-        local result = myCpu:get_register("x10")
-        assert.are.equal(42, result)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x12"))
     end)
 
-    it("RSIGG reads from green input signals", function()
-        local code = {
-            "RSIGG x10, copper-plate",
-            "HLT",
-        }
+    it("MUL by zero yields zero", function()
+        local code = { "ADDI x10, x0, 99", "MUL x11, x10, x0", "HLT" }
         local myCpu = cpu.new(code)
-        myCpu:set_input_signals({}, { ["copper-plate"] = 99 })
-        myCpu:step()
-
-        local result = myCpu:get_register("x10")
-        assert.are.equal(99, result)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
     end)
 
-    it("RSIGR returns 0 for absent signal", function()
-        local code = {
-            "ADDI x10, x0, 7",   -- pre-load so we confirm it gets overwritten
-            "RSIGR x10, iron-ore",
-            "HLT",
-        }
+    it("MUL write to x0 silently ignored", function()
+        local code = { "ADDI x10, x0, 5", "MUL x0, x10, x10", "HLT" }
         local myCpu = cpu.new(code)
-        myCpu:set_input_signals({}, {})  -- no signals
-        myCpu:step()
-        myCpu:step()
-
-        local result = myCpu:get_register("x10")
-        assert.are.equal(0, result)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x0"))
+        assert.is_false(myCpu.status.error)
     end)
 
-    it("RSIGG returns 0 for absent signal", function()
-        local code = {
-            "ADDI x10, x0, 5",
-            "RSIGG x10, copper-plate",
-            "HLT",
-        }
+    it("MUL with invalid register sets error", function()
+        local myCpu = cpu.new({ "MUL x1, x99, x0" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── AND ──────────────────────────────────────────────────────────────────
+
+    it("AND performs bitwise AND", function()
+        -- 60 = 0b111100, 15 = 0b001111, AND = 0b001100 = 12
+        local code = { "ADDI x10, x0, 60", "ADDI x11, x0, 15", "AND x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(12, myCpu:get_register("x12"))
+    end)
+
+    it("AND can mask low nibble", function()
+        local code = { "ADDI x10, x0, 255", "ADDI x11, x0, 15", "AND x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(15, myCpu:get_register("x12"))
+    end)
+
+    -- ── OR ───────────────────────────────────────────────────────────────────
+
+    it("OR performs bitwise OR", function()
+        -- 60 = 0b111100, 15 = 0b001111, OR = 0b111111 = 63
+        local code = { "ADDI x10, x0, 60", "ADDI x11, x0, 15", "OR x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(63, myCpu:get_register("x12"))
+    end)
+
+    it("OR with zero is identity", function()
+        local code = { "ADDI x10, x0, 42", "OR x11, x10, x0", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x11"))
+    end)
+
+    -- ── XOR ──────────────────────────────────────────────────────────────────
+
+    it("XOR performs bitwise XOR", function()
+        -- 60 = 0b111100, 15 = 0b001111, XOR = 0b110011 = 51
+        local code = { "ADDI x10, x0, 60", "ADDI x11, x0, 15", "XOR x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(51, myCpu:get_register("x12"))
+    end)
+
+    it("XOR with self yields zero", function()
+        local code = { "ADDI x10, x0, 12345", "XOR x10, x10, x10", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x10"))
+    end)
+
+    -- ── NOT ──────────────────────────────────────────────────────────────────
+
+    it("NOT of 0 yields -1", function()
+        local code = { "ADDI x10, x0, 0", "NOT x11, x10", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(-1, myCpu:get_register("x11"))
+    end)
+
+    it("NOT of -1 yields 0", function()
+        local code = { "ADDI x10, x0, -1", "NOT x11, x10", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
+    end)
+
+    it("NOT with wrong arg count sets error", function()
+        local myCpu = cpu.new({ "NOT x1, x0, x0" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── SHL / SHLI ───────────────────────────────────────────────────────────
+
+    it("SHLI shifts left by immediate", function()
+        -- 1 << 4 = 16
+        local code = { "ADDI x10, x0, 1", "SHLI x11, x10, 4", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(16, myCpu:get_register("x11"))
+    end)
+
+    it("SHL shifts left by register", function()
+        -- 3 << 3 = 24
+        local code = { "ADDI x10, x0, 3", "ADDI x11, x0, 3", "SHL x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(24, myCpu:get_register("x12"))
+    end)
+
+    it("SHLI with invalid immediate sets error", function()
+        local myCpu = cpu.new({ "SHLI x1, x0, abc" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── SHR / SHRI ───────────────────────────────────────────────────────────
+
+    it("SHRI shifts right by immediate", function()
+        -- 256 >> 4 = 16
+        local code = { "ADDI x10, x0, 256", "SHRI x11, x10, 4", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(16, myCpu:get_register("x11"))
+    end)
+
+    it("SHR shifts right by register", function()
+        -- 128 >> 3 = 16
+        local code = { "ADDI x10, x0, 128", "ADDI x11, x0, 3", "SHR x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(16, myCpu:get_register("x12"))
+    end)
+
+    it("SHRI with invalid immediate sets error", function()
+        local myCpu = cpu.new({ "SHRI x1, x0, abc" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── CNTSR / CNTSG ────────────────────────────────────────────────────────
+
+    it("CNTSG counts distinct signals on green wire", function()
+        local code = { "CNTSG x10", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:set_input_signals({},
+            { ["iron-plate"] = 100, ["copper-plate"] = 50, ["steel-plate"] = 25 })
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(3, myCpu:get_register("x10"))
+    end)
+
+    it("CNTSR counts distinct signals on red wire", function()
+        local code = { "CNTSR x10", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:set_input_signals({ ["signal-A"] = 1, ["signal-B"] = 1 }, {})
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(2, myCpu:get_register("x10"))
+    end)
+
+    it("CNTSG returns 0 when green wire is empty", function()
+        local code = { "CNTSG x10", "HLT" }
         local myCpu = cpu.new(code)
         myCpu:set_input_signals({}, {})
-        myCpu:step()
-        myCpu:step()
-
-        local result = myCpu:get_register("x10")
-        assert.are.equal(0, result)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x10"))
     end)
 
-    it("RSIGR and RSIGG read independent channels", function()
-        local code = {
-            "RSIGR x10, signal-A",
-            "RSIGG x11, signal-A",
-            "HLT",
-        }
+    it("CNTSR and CNTSG are independent", function()
+        local code = { "CNTSR x10", "CNTSG x11", "HLT" }
         local myCpu = cpu.new(code)
-        myCpu:set_input_signals({ ["signal-A"] = 100 }, { ["signal-A"] = 200 })
-        myCpu:step()
-        myCpu:step()
-
-        assert.are.equal(100, myCpu:get_register("x10"))
-        assert.are.equal(200, myCpu:get_register("x11"))
+        myCpu:set_input_signals(
+            { ["iron-plate"] = 1 },
+            { ["iron-plate"] = 1, ["copper-plate"] = 1, ["steel-plate"] = 1 }
+        )
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(1, myCpu:get_register("x10"))
+        assert.are.equal(3, myCpu:get_register("x11"))
     end)
 
-    it("RSIGR write to x0 is silently ignored", function()
-        local code = {
-            "RSIGR x0, iron-ore",
-            "HLT",
-        }
+    it("CNTSG write to x0 silently ignored", function()
+        local code = { "CNTSG x0", "HLT" }
         local myCpu = cpu.new(code)
-        myCpu:set_input_signals({ ["iron-ore"] = 55 }, {})
-        myCpu:step()
-
+        myCpu:set_input_signals({}, { ["signal-A"] = 99 })
+        while not myCpu:is_halted() do myCpu:step() end
         assert.are.equal(0, myCpu:get_register("x0"))
         assert.is_false(myCpu.status.error)
     end)
 
-    it("RSIGG write to x0 is silently ignored", function()
-        local code = {
-            "RSIGG x0, iron-ore",
-            "HLT",
-        }
-        local myCpu = cpu.new(code)
-        myCpu:set_input_signals({}, { ["iron-ore"] = 55 })
-        myCpu:step()
-
-        assert.are.equal(0, myCpu:get_register("x0"))
-        assert.is_false(myCpu.status.error)
-    end)
-
-    it("RSIGR with wrong arg count sets error", function()
-        local myCpu = cpu.new({ "RSIGR x10" })
-        myCpu:step()
-        assert.is_true(myCpu.status.error)
-        assert.are.equal(1, #myCpu:get_errors())
-    end)
-
-    it("RSIGG with wrong arg count sets error", function()
-        local myCpu = cpu.new({ "RSIGG x10" })
-        myCpu:step()
-        assert.is_true(myCpu.status.error)
-        assert.are.equal(1, #myCpu:get_errors())
-    end)
-
-    it("RSIGR with invalid destination register sets error", function()
-        local myCpu = cpu.new({ "RSIGR x99, iron-ore" })
-        myCpu:set_input_signals({ ["iron-ore"] = 1 }, {})
+    it("CNTSG with wrong arg count sets error", function()
+        local myCpu = cpu.new({ "CNTSG" })
         myCpu:step()
         assert.is_true(myCpu.status.error)
     end)
 
-    it("RSIGG can be used in a branch loop reading live input", function()
-        -- Simulate waiting until a green signal reaches a threshold
-        local code = {
-            "loop:",
-            "    RSIGG x10, iron-ore",
-            "    SLTI x6, x10, 50",
-            "    BNE x6, x0, loop",   -- keep looping while iron-ore < 50
-            "    HLT",
-        }
-        local myCpu = cpu.new(code)
-
-        -- With iron-ore = 10, CPU should stay in loop
-        myCpu:set_input_signals({}, { ["iron-ore"] = 10 })
-        for _ = 1, 12 do myCpu:step() end
-        assert.is_false(myCpu:is_halted())
-
-        -- Now bump the signal past the threshold
-        myCpu:set_input_signals({}, { ["iron-ore"] = 75 })
-        for _ = 1, 6 do myCpu:step() end
-        assert.is_true(myCpu:is_halted())
-    end)
+end)

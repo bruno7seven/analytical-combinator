@@ -1,4 +1,25 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.4
+Date: 29. 03. 2026
+  Features:
+    - Added MUL rd, rs, rt  — multiply two registers (rd = rs * rt)
+    - Added AND rd, rs, rt  — bitwise AND
+    - Added OR  rd, rs, rt  — bitwise OR
+    - Added XOR rd, rs, rt  — bitwise XOR
+    - Added NOT rd, rs      — bitwise NOT, unary (rd = ~rs)
+    - Added SHL  rd, rs, rt  — shift left by register
+    - Added SHLI rd, rs, imm — shift left by immediate
+    - Added SHR  rd, rs, rt  — logical shift right by register
+    - Added SHRI rd, rs, imm — logical shift right by immediate
+    - Added CNTSR rd — count of distinct signals on the red input wire
+    - Added CNTSG rd — count of distinct signals on the green input wire
+    - All new instructions respect the x0 write-suppression rule and produce
+      descriptive errors for wrong argument counts or invalid register names
+    - 25 new tests (61 total)
+    - README: Bitwise and Shifts instruction tables added; CNTSR/CNTSG added to
+      circuit input table; two new examples (bit masking, signal presence detection)
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.3
 Date: 29. 03. 2026
   Bugfixes:
