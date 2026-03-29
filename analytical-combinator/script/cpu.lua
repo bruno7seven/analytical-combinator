@@ -102,6 +102,16 @@ function module:step()
     end
     local instruction = table.remove(args, 1)
 
+    -- portable bitwise functions to use rather than typical operators
+    local bitlib = bit32 or bit  -- whichever exists
+    local band = bitlib.band
+    local bor  = bitlib.bor
+    local bxor = bitlib.bxor
+    local bnot = bitlib.bnot
+    local lshift  = bitlib.lshift
+    local rshift  = bitlib.rshift
+    local arshift = bitlib.arshift
+
     if instruction == "HLT" then
         self.status.is_halted = true
         return
@@ -385,7 +395,7 @@ function module:step()
                     "[AND:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = rs & rt
+            self.registers[args[1]] = band(rs,rt)
         end
     elseif instruction == "OR" then
         if #args ~= 3 then
@@ -403,7 +413,7 @@ function module:step()
                     "[OR:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = rs | rt
+            self.registers[args[1]] = bor(rs,rt)
         end
     elseif instruction == "XOR" then
         if #args ~= 3 then
@@ -421,7 +431,7 @@ function module:step()
                     "[XOR:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = rs ~ rt
+            self.registers[args[1]] = bxor(rs,rt)
         end
     elseif instruction == "NOT" then
         -- Unary bitwise NOT: NOT rd, rs  =>  rd = ~rs
@@ -439,7 +449,7 @@ function module:step()
                     "[NOT:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = ~rs
+            self.registers[args[1]] = bnot(rs)
         end
     elseif instruction == "SHL" then
         -- Shift left by register: SHL rd, rs, rt  =>  rd = rs << rt
@@ -458,7 +468,7 @@ function module:step()
                     "[SHL:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = rs << rt
+            self.registers[args[1]] = lshift(rs,rt)
         end
     elseif instruction == "SHLI" then
         -- Shift left by immediate: SHLI rd, rs, imm  =>  rd = rs << imm
@@ -477,7 +487,7 @@ function module:step()
                     "[SHLI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
                 return
             end
-            self.registers[args[1]] = rs << imm
+            self.registers[args[1]] = lshift(rs,imm)
         end
     elseif instruction == "SHR" then
         -- Logical shift right by register: SHR rd, rs, rt  =>  rd = rs >> rt
@@ -496,7 +506,7 @@ function module:step()
                     "[SHR:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = rs >> rt
+            self.registers[args[1]] = arshift(rs,rt)
         end
     elseif instruction == "SHRI" then
         -- Logical shift right by immediate: SHRI rd, rs, imm  =>  rd = rs >> imm
@@ -515,7 +525,7 @@ function module:step()
                     "[SHRI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
                 return
             end
-            self.registers[args[1]] = rs >> imm
+            self.registers[args[1]] = arshift(rs,imm)
         end
     elseif instruction == "CNTSR" then
         -- Count signals on Red input: CNTSR rd
