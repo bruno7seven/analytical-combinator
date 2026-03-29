@@ -1,0 +1,117 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.8.1
+Date: 29. 03. 2026
+  Features:
+    - Assembly code editor now uses a monospace font (NotoMono via the built-in "default-mono"
+      descriptor). A FontPrototype "ac-mono-14" is declared in prototypes/fonts.lua and applied
+      to the text-box at GUI creation time via textbox.style.font. No external TTF file is
+      required as NotoMono-Regular.ttf ships with Factorio core.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.8.0
+Date: 29. 03. 2026
+  Changes:
+    - New technology tree icon (256x256): dark PCB circle with circuit traces, central IC chip,
+      amber LED, and assembly code line art — no longer uses the vanilla circuit-network graphic
+    - New mod portal thumbnail (144x144): shows the combinator body with screen chip, green
+      input wire, red output wire, and a floating assembly code snippet
+    - Rewrote all locale descriptions in locale/en/base.cfg to specifically describe the
+      assembly-language programming model rather than generic combinator marketing copy
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.7.9
+Date: 29. 03. 2026
+  Changes:
+    - Mod renamed from "Assembly Combinator" to "Analytical Combinator" to distinguish it
+      from the original constant-combinator-based mod by joalon. All internal entity names,
+      storage keys, GUI names, prototype IDs, and locale strings updated accordingly.
+    - License changed to Zero-Clause BSD (0BSD) — no attribution required.
+    - Updated mod description to better reflect RISC-V inspired assembly language and
+      dual-wire input capability.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.7.8
+Date: 28. 03. 2026
+  Bugfixes:
+    - Fixed crash when WSIG is used with virtual or fluid signals (e.g. signal-red, crude-oil).
+      Output signals were always emitted with type="item", causing Factorio to reject any name
+      that isn't a valid item. write_outputs now resolves each signal name against
+      prototypes.virtual_signal, prototypes.item, and prototypes.fluid in that order to
+      determine the correct type. Invalid signal names are silently skipped rather than crashing.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.7.7
+Date: 28. 03. 2026
+  Documentation:
+    - Fixed incorrect README description for the Threshold Gate example which claimed the
+      output signal appeared "on the red wire". WSIG writes to an output register with no
+      wire-colour specificity; the signal appears on whichever wire(s) are physically connected
+      to the output side of the combinator.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.7.6
+Date: 28. 03. 2026
+  Bugfixes:
+    - Fixed "everything" signal appearing on output wire in alt-mode and leaking onto the circuit
+      network. The always-true condition used signal-everything as its first_signal, which is a
+      special aggregate virtual signal that Factorio propagates to the output. Replaced with a
+      pure constant condition (first_constant=0, comparator="=", second_constant=0) which
+      references no signals at all and has no side effects on the network.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.7.5
+Date: 28. 03. 2026
+  Bugfixes:
+    - Fixed crash on load: defines.circuit_connector_id was removed in Factorio 2.0 and replaced
+      by defines.wire_connector_id with per-colour IDs. get_circuit_network() now takes a single
+      wire_connector_id (e.g. combinator_input_red / combinator_input_green) rather than a
+      wire_type + circuit_connector_id pair. Fixed in both events.lua and gui.lua.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.7.4
+Date: 28. 03. 2026
+  Bugfixes:
+    - Fixed RSIGR and RSIGG always reading zero: get_circuit_network() requires an explicit
+      circuit_connector_id for entities with separate input and output connectors. Without it
+      the call returns nil on a decider combinator. Both events.lua and gui.lua now pass
+      defines.circuit_connector_id.combinator_input when reading the input-side network.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+Version: 0.7.3
+Date: 28. 03. 2026
+  Bugfixes:
+    - Fixed crash when loading a saved game containing analytical combinators: Factorio does not
+      persist Lua metatables across saves, so stored cpu objects lost all their methods on load.
+      control.lua now re-attaches the cpu module metatable in both on_load (normal resume) and
+      on_configuration_changed (mod update). Also backfills the input_signals field for saves
+      predating 0.7.0 that were created without it.
+---------------------------------------------------------------------------------------------------
+
+Date: 28. 03. 2026
+  Bugfixes:
+    - Fixed crash on placement: LuaDeciderCombinatorControlBehavior does not expose
+      sections_count / add_section / get_section (those belong to the constant combinator).
+      Output writing now uses behavior.parameters with a conditions+outputs table, which is
+      the correct 2.0 API for decider combinators. Clearing outputs uses behavior.parameters=nil.
+---------------------------------------------------------------------------------------------------
+
+Date: 28. 03. 2026
+  Graphics:
+    - Added custom microchip display sprite (30x22) replacing the decider combinator's
+      comparison operator symbols (=, >, <, ≠, ≥, ≤) so the entity is visually distinct
+      in-world regardless of which operator mode Factorio internally selects
+    - Added custom 64x64 inventory/crafting icon showing the combinator body with the chip
+      symbol on screen, a green status LED, and an 'AC' label
+---------------------------------------------------------------------------------------------------
+Version: 0.7.0
+Date: 28. 03. 2026
+  Major Features:
+    - Fork of Assembly combinator version 0.6.2 from joalon
+    - Analytical combinator is now based on a Decider Combinator, providing both input and output
+      circuit network connections (red and green wires)
+    - Added RSIGR instruction: read a named signal from the red input wire into a register
+    - Added RSIGG instruction: read a named signal from the green input wire into a register
+    - Red and green channels are read independently each tick, enabling programs to respond
+      to live circuit network state
+  Changes:
+    - Recipe now requires a Decider Combinator instead of a Constant Combinator

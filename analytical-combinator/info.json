@@ -1,0 +1,12 @@
+{
+  "name": "analytical-combinator",
+  "version": "0.8.1",
+  "title": "Analytical Combinator",
+  "author": "bruno77",
+  "factorio_version": "2.0",
+  "dependencies": [
+    "base >= 2.0",
+    "flib >= 0.16.3"
+  ],
+  "description": "A programmable circuit combinator controlled via a RISC-V inspired assembly language. Supports reading red and green input signals and writing up to four output signals per tick."
+}
