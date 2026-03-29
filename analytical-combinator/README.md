@@ -43,12 +43,19 @@ input (red and green wires) and output circuit network connections.
 
 ### Shifts
 
+Shift instructions follow the RISC-V naming convention. Left shifts are always
+logical (zero-fill). Right shifts come in two flavours — logical (zero-fill from
+the left, use when treating the value as unsigned) and arithmetic (sign-extend,
+use when treating the value as a signed integer).
+
 | Instruction | Syntax | Description |
 |---|---|---|
-| `SHL`  | `rd, rs, rt`  | `rd = rs << rt`  — shift left by register |
-| `SHLI` | `rd, rs, imm` | `rd = rs << imm` — shift left by immediate |
-| `SHR`  | `rd, rs, rt`  | `rd = rs >> rt`  — logical shift right by register |
-| `SHRI` | `rd, rs, imm` | `rd = rs >> imm` — logical shift right by immediate |
+| `SLL`  | `rd, rs, rt`  | `rd = rs << rt`  — shift left logical by register |
+| `SLLI` | `rd, rs, imm` | `rd = rs << imm` — shift left logical by immediate |
+| `SRL`  | `rd, rs, rt`  | `rd = rs >> rt`  — shift right **logical** (zero-fill) by register |
+| `SRLI` | `rd, rs, imm` | `rd = rs >> imm` — shift right **logical** (zero-fill) by immediate |
+| `SRA`  | `rd, rs, rt`  | `rd = rs >> rt`  — shift right **arithmetic** (sign-extend) by register |
+| `SRAI` | `rd, rs, imm` | `rd = rs >> imm` — shift right **arithmetic** (sign-extend) by immediate |
 
 ### Control flow
 
@@ -85,6 +92,27 @@ input (red and green wires) and output circuit network connections.
 
 - `x0`–`x31`: general-purpose integer registers. `x0` is always 0 (writes ignored).
 - `o0`–`o3`: output signal registers, written by `WSIG`, emitted on the output network each tick.
+
+## Immediate value formats
+
+All instructions that take an immediate (`imm`) argument accept integers in
+**decimal**, **hexadecimal** (`0x` prefix), or **negative decimal**. Octal
+(`0`-prefix) is technically accepted by the Lua parser but best avoided.
+
+```
+ADDI x10, x0, 255       # decimal
+ADDI x10, x0, 0xFF      # hex — same value, preferred for bitmasks
+ADDI x10, x0, -1        # negative decimal
+SHLI x11, x10, 0x4      # shift amount as hex (unusual but valid)
+```
+
+Hex is especially useful with bitwise instructions:
+
+```
+ADDI  x10, x0,  0xFF00FF  # load a bitmask
+AND   x11, x12, x10        # apply the mask
+SRLI  x11, x11, 0x8        # extract middle byte
+```
 
 ## Example programs
 
@@ -128,7 +156,7 @@ useful if you are packing multiple small values into a single signal channel.
     RSIGR x10, signal-A         # Read packed value from red wire
     ADDI  x11, x0,  255         # Mask = 0xFF
     AND   x12, x10, x11         # x12 = low byte of signal-A
-    SHRI  x13, x10, 8           # x13 = next byte up
+    SRLI  x13, x10, 8           # x13 = next byte up (logical: zero-fills upper bits)
     WSIG  o0, signal-A, x12     # Output low byte
     WSIG  o1, signal-B, x13     # Output second byte
     HLT

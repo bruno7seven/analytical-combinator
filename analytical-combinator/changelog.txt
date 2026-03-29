@@ -1,4 +1,28 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.6
+Date: 29. 03. 2026
+  Features:
+    - Added SRL rd, rs, rt   — shift right logical by register (zero-fill)
+    - Added SRLI rd, rs, imm — shift right logical by immediate (zero-fill)
+    - Hex immediates: all immediate arguments now accept 0x prefix (e.g. ADDI x10, x0, 0xFF).
+      tonumber() auto-detects base, so decimal and hex both work everywhere.
+  Changes:
+    - Renamed shift instructions to match RISC-V convention:
+        SHL  → SLL  (shift left logical, register)
+        SHLI → SLLI (shift left logical, immediate)
+        SHR  → SRA  (shift right arithmetic, register)
+        SHRI → SRAI (shift right arithmetic, immediate)
+    - Moved bitlib setup (bit32/bit) to module level rather than inside step() to
+      avoid re-evaluating it on every tick.
+    - Fixed indentation bug: the else clause of the instruction dispatcher was
+      accidentally indented inside the CNTSG block.
+  Documentation:
+    - README Shifts table expanded to all six variants with logical/arithmetic distinction noted.
+    - README new section "Immediate value formats" documents decimal, hex, and negative literals.
+    - Test suite: shift tests renamed; 4 new tests contrasting SRL/SRLI (zero-fill) against
+      SRA/SRAI (sign-extend) on negative values. 65 tests total.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.5
 Date: 29. 03. 2026
   Bugfixes:

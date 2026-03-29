@@ -651,50 +651,90 @@ describe("CPU tests", function()
 
     -- ── SHL / SHLI ───────────────────────────────────────────────────────────
 
-    it("SHLI shifts left by immediate", function()
-        -- 1 << 4 = 16
-        local code = { "ADDI x10, x0, 1", "SHLI x11, x10, 4", "HLT" }
+    it("SLLI shifts left by immediate", function()
+        -- 1 << 4 = 16 (logical)
+        local code = { "ADDI x10, x0, 1", "SLLI x11, x10, 4", "HLT" }
         local myCpu = cpu.new(code)
         while not myCpu:is_halted() do myCpu:step() end
         assert.are.equal(16, myCpu:get_register("x11"))
     end)
 
-    it("SHL shifts left by register", function()
-        -- 3 << 3 = 24
-        local code = { "ADDI x10, x0, 3", "ADDI x11, x0, 3", "SHL x12, x10, x11", "HLT" }
+    it("SLL shifts left by register", function()
+        -- 3 << 3 = 24 (logical)
+        local code = { "ADDI x10, x0, 3", "ADDI x11, x0, 3", "SLL x12, x10, x11", "HLT" }
         local myCpu = cpu.new(code)
         while not myCpu:is_halted() do myCpu:step() end
         assert.are.equal(24, myCpu:get_register("x12"))
     end)
 
-    it("SHLI with invalid immediate sets error", function()
-        local myCpu = cpu.new({ "SHLI x1, x0, abc" })
+    it("SLLI with invalid immediate sets error", function()
+        local myCpu = cpu.new({ "SLLI x1, x0, abc" })
         myCpu:step()
         assert.is_true(myCpu.status.error)
     end)
 
     -- ── SHR / SHRI ───────────────────────────────────────────────────────────
 
-    it("SHRI shifts right by immediate", function()
-        -- 256 >> 4 = 16
-        local code = { "ADDI x10, x0, 256", "SHRI x11, x10, 4", "HLT" }
+    it("SRAI shifts right by immediate", function()
+        -- 256 >> 4 = 16 (arithmetic, positive so same as logical)
+        local code = { "ADDI x10, x0, 256", "SRAI x11, x10, 4", "HLT" }
         local myCpu = cpu.new(code)
         while not myCpu:is_halted() do myCpu:step() end
         assert.are.equal(16, myCpu:get_register("x11"))
     end)
 
-    it("SHR shifts right by register", function()
-        -- 128 >> 3 = 16
-        local code = { "ADDI x10, x0, 128", "ADDI x11, x0, 3", "SHR x12, x10, x11", "HLT" }
+    it("SRA shifts right by register", function()
+        -- 128 >> 3 = 16 (arithmetic, positive so same as logical)
+        local code = { "ADDI x10, x0, 128", "ADDI x11, x0, 3", "SRA x12, x10, x11", "HLT" }
         local myCpu = cpu.new(code)
         while not myCpu:is_halted() do myCpu:step() end
         assert.are.equal(16, myCpu:get_register("x12"))
     end)
 
-    it("SHRI with invalid immediate sets error", function()
-        local myCpu = cpu.new({ "SHRI x1, x0, abc" })
+    it("SRAI with invalid immediate sets error", function()
+        local myCpu = cpu.new({ "SRAI x1, x0, abc" })
         myCpu:step()
         assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── SRL / SRLI (logical right shift — zero fill) ────────────────────────────
+
+    it("SRLI shifts right logical by immediate (zero-fills, no sign extension)", function()
+        -- 0x80000000 (most-negative 32-bit) >> 1 logical = 0x40000000
+        -- arithmetic would give 0xC0000000 (sign-extended)
+        local code = {
+            "ADDI x10, x0, -2147483648",  -- 0x80000000
+            "SRLI x11, x10, 1",
+            "HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(1073741824, myCpu:get_register("x11"))  -- 0x40000000
+    end)
+
+    it("SRL shifts right logical by register", function()
+        local code = { "ADDI x10, x0, 256", "ADDI x11, x0, 4", "SRL x12, x10, x11", "HLT" }
+        -- 256 >> 4 = 16
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(16, myCpu:get_register("x12"))
+    end)
+
+    it("SRA sign-extends on right shift of negative value", function()
+        -- SRA of -128 >> 1 should give -64 (sign bit preserved)
+        local code = { "ADDI x10, x0, -128", "SRAI x11, x10, 1", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(-64, myCpu:get_register("x11"))
+    end)
+
+    it("SRLI does NOT sign-extend on right shift of negative value", function()
+        -- SRL of -128 (0xFFFFFF80) >> 1 should give a large positive (zero-fill from left)
+        local code = { "ADDI x10, x0, -128", "SRLI x11, x10, 1", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        -- result should be 0x7FFFFFC0 = 2147483584, NOT -64
+        assert.are.equal(2147483584, myCpu:get_register("x11"))
     end)
 
     -- ── CNTSR / CNTSG ────────────────────────────────────────────────────────

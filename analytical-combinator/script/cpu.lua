@@ -1,6 +1,18 @@
 local module = {}
 module.__index = module
 
+-- LuaJIT (Factorio's runtime) implements Lua 5.1 — the bitwise operators
+-- &, |, ~, <<, >> do not exist. Use the bit library instead.
+-- LuaJIT ships "bit" built-in; standard Lua 5.2 has "bit32". Try both.
+local _bitlib = bit32 or bit
+local _band    = _bitlib.band
+local _bor     = _bitlib.bor
+local _bxor    = _bitlib.bxor
+local _bnot    = _bitlib.bnot
+local _lshift  = _bitlib.lshift
+local _rshift  = _bitlib.rshift    -- logical (zero-fill)
+local _arshift = _bitlib.arshift   -- arithmetic (sign-extend)
+
 function module.parse_labels(code)
     local label_pattern = "^%s*([%w_][%w_]*):.*$"
     local labels = {}
@@ -101,16 +113,6 @@ function module:step()
         table.insert(args, arg)
     end
     local instruction = table.remove(args, 1)
-
-    -- portable bitwise functions to use rather than typical operators
-    local bitlib = bit32 or bit  -- whichever exists
-    local band = bitlib.band
-    local bor  = bitlib.bor
-    local bxor = bitlib.bxor
-    local bnot = bitlib.bnot
-    local lshift  = bitlib.lshift
-    local rshift  = bitlib.rshift
-    local arshift = bitlib.arshift
 
     if instruction == "HLT" then
         self.status.is_halted = true
@@ -395,7 +397,7 @@ function module:step()
                     "[AND:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = band(rs,rt)
+            self.registers[args[1]] = _band(rs, rt)
         end
     elseif instruction == "OR" then
         if #args ~= 3 then
@@ -413,7 +415,7 @@ function module:step()
                     "[OR:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = bor(rs,rt)
+            self.registers[args[1]] = _bor(rs, rt)
         end
     elseif instruction == "XOR" then
         if #args ~= 3 then
@@ -431,7 +433,7 @@ function module:step()
                     "[XOR:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = bxor(rs,rt)
+            self.registers[args[1]] = _bxor(rs, rt)
         end
     elseif instruction == "NOT" then
         -- Unary bitwise NOT: NOT rd, rs  =>  rd = ~rs
@@ -449,14 +451,14 @@ function module:step()
                     "[NOT:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = bnot(rs)
+            self.registers[args[1]] = _bnot(rs)
         end
-    elseif instruction == "SHL" then
-        -- Shift left by register: SHL rd, rs, rt  =>  rd = rs << rt
+    elseif instruction == "SLL" then
+        -- Shift left logical by register: SLL rd, rs, rt  =>  rd = rs << rt (zero-fill)
         if #args ~= 3 then
             self.status.error = true
             table.insert(self.errors,
-                "[SHL:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+                "[SLL:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
             return
         end
         if args[1] ~= "x0" then
@@ -465,17 +467,17 @@ function module:step()
             if rs == nil or rt == nil then
                 self.status.error = true
                 table.insert(self.errors,
-                    "[SHL:" .. self.instruction_pointer .. "] Invalid register name")
+                    "[SLL:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = lshift(rs,rt)
+            self.registers[args[1]] = _lshift(rs, rt)
         end
-    elseif instruction == "SHLI" then
-        -- Shift left by immediate: SHLI rd, rs, imm  =>  rd = rs << imm
+    elseif instruction == "SLLI" then
+        -- Shift left logical by immediate: SLLI rd, rs, imm  =>  rd = rs << imm (zero-fill)
         if #args ~= 3 then
             self.status.error = true
             table.insert(self.errors,
-                "[SHLI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+                "[SLLI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
             return
         end
         if args[1] ~= "x0" then
@@ -484,17 +486,17 @@ function module:step()
             if rs == nil or imm == nil then
                 self.status.error = true
                 table.insert(self.errors,
-                    "[SHLI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
+                    "[SLLI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
                 return
             end
-            self.registers[args[1]] = lshift(rs,imm)
+            self.registers[args[1]] = _lshift(rs, imm)
         end
-    elseif instruction == "SHR" then
-        -- Logical shift right by register: SHR rd, rs, rt  =>  rd = rs >> rt
+    elseif instruction == "SRA" then
+        -- Shift right arithmetic by register: SRA rd, rs, rt  =>  rd = rs >> rt (sign-extend)
         if #args ~= 3 then
             self.status.error = true
             table.insert(self.errors,
-                "[SHR:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+                "[SRA:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
             return
         end
         if args[1] ~= "x0" then
@@ -503,17 +505,17 @@ function module:step()
             if rs == nil or rt == nil then
                 self.status.error = true
                 table.insert(self.errors,
-                    "[SHR:" .. self.instruction_pointer .. "] Invalid register name")
+                    "[SRA:" .. self.instruction_pointer .. "] Invalid register name")
                 return
             end
-            self.registers[args[1]] = arshift(rs,rt)
+            self.registers[args[1]] = _arshift(rs, rt)
         end
-    elseif instruction == "SHRI" then
-        -- Logical shift right by immediate: SHRI rd, rs, imm  =>  rd = rs >> imm
+    elseif instruction == "SRAI" then
+        -- Shift right arithmetic by immediate: SRAI rd, rs, imm  =>  rd = rs >> imm (sign-extend)
         if #args ~= 3 then
             self.status.error = true
             table.insert(self.errors,
-                "[SHRI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+                "[SRAI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
             return
         end
         if args[1] ~= "x0" then
@@ -522,10 +524,48 @@ function module:step()
             if rs == nil or imm == nil then
                 self.status.error = true
                 table.insert(self.errors,
-                    "[SHRI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
+                    "[SRAI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
                 return
             end
-            self.registers[args[1]] = arshift(rs,imm)
+            self.registers[args[1]] = _arshift(rs, imm)
+        end
+    elseif instruction == "SRL" then
+        -- Shift right logical by register: SRL rd, rs, rt  =>  rd = rs >> rt (zero-fill)
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[SRL:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[SRL:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            self.registers[args[1]] = _rshift(rs, rt)
+        end
+    elseif instruction == "SRLI" then
+        -- Shift right logical by immediate: SRLI rd, rs, imm  =>  rd = rs >> imm (zero-fill)
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[SRLI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs  = self.registers[args[2]]
+            local imm = tonumber(args[3])
+            if rs == nil or imm == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[SRLI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
+                return
+            end
+            self.registers[args[1]] = _rshift(rs, imm)
         end
     elseif instruction == "CNTSR" then
         -- Count signals on Red input: CNTSR rd
@@ -571,7 +611,7 @@ function module:step()
             end
             self.registers[args[1]] = count
         end
-        else
+    else
         if instruction ~= nil then
             table.insert(self.errors, "Unexpected instruction on line " .. self.instruction_pointer .. ": " ..
                 instruction)
