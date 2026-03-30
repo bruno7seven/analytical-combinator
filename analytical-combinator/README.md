@@ -61,8 +61,8 @@ use when treating the value as a signed integer).
 
 | Instruction | Syntax | Description |
 |---|---|---|
-| `JAL` | `rd, label`     | Jump to label; save line number of JAL in rd (use x0 to discard) |
-| `JR`  | `rs`            | Jump to line rs+1 — subroutine return; pairs with `JAL rd, label` |
+| `JAL` | `rd, label`     | Jump to label; save address of next instruction in rd (use x0 to discard) |
+| `JR`  | `rs`            | Jump to address in rs — subroutine return. `JR x0` restarts from line 1. |
 | `BEQ` | `rs, rt, label` | Branch if rs == rt |
 | `BNE` | `rs, rt, label` | Branch if rs != rt |
 | `BLT` | `rs, rt, label` | Branch if rs < rt |
@@ -154,37 +154,33 @@ poll:
 
 ### Subroutine call with JAL / JR
 
-`JAL rd, label` saves the line number of the `JAL` instruction into `rd`, then
-jumps to `label`. `JR rd` returns to `rd + 1` — the line after the call site.
-Use a different register for each concurrent call to avoid clobbering return
-addresses. Recursive calls are not supported (no stack), but simple call/return
-works cleanly.
+`JAL rd, label` saves the address of the next instruction into `rd`, then jumps
+to `label`. `JR rd` jumps to the address in `rd`, returning execution to the
+instruction after the call site. Use a different link register for each call
+frame. Recursive calls are not supported (no stack), but sequential calls to
+shared subroutines work cleanly.
+
+`JR x0` is a special case: since x0 is always 0 and 0 is not a valid line
+number, it is defined to restart the program from line 1.
 
 ```
 main:
     RSIGG x10, iron-plate
-    JAL   x1, clamp_255          # clamp iron-plate count to 255, result in x10
-    WSIG  o0, iron-plate, x10
+    JAL   x1, clamp_255          # x1 = return address; jump to clamp_255
+    WSIG  o0, iron-plate, x10   # resumes here after return
     RSIGG x10, copper-plate
-    JAL   x2, clamp_255          # reuse the same subroutine with a different return reg
+    JAL   x1, clamp_255          # reuse the same subroutine and same link register
     WSIG  o1, copper-plate, x10
     WAIT  60
-    JAL   x0, main
+    JR    x0                     # restart from line 1 (same as JAL x0, main if main: is on line 1)
 
-clamp_255:                        # expects value in x10, returns clamped value in x10
-    SLTI  x6,  x10, 256          # x6 = 1 if already in range
-    BNE   x6,  x0,  clamp_r      # if in range, go return
-    ADDI  x10, x0,  255           # otherwise clamp
-clamp_r:
-    BGT   x1,  x2,  clamp_ret2   # which call site do we return to?
-    JR    x1                      # return via x1 (first caller)
-clamp_ret2:
-    JR    x2                      # return via x2 (second caller)
+clamp_255:                       # expects value in x10, returns clamped value in x10
+    SLTI  x6,  x10, 256         # x6 = 1 if value already in range
+    BNE   x6,  x0,  clamp_ret  # skip clamp if already in range
+    ADDI  x10, x0,  255         # clamp to 255
+clamp_ret:
+    JR    x1                    # return to caller
 ```
-
-> **Note:** The above pattern works but is awkward. A cleaner convention is to
-> always use the same register (e.g. `x1`) as the return address and call
-> subroutines sequentially rather than nesting them.
 
 ### Bit masking — extract low byte
 

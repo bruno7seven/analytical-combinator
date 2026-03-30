@@ -1,4 +1,24 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.8
+Date: 29. 03. 2026
+  Changes:
+    - Fixed JAL to save IP+1 (address of the next instruction) rather than the line number
+      of the JAL itself. This matches standard RISC-V convention and makes JR work cleanly
+      without a compensating +1. Existing programs using JAL x0 (discard return address)
+      are unaffected. Programs relying on the specific numeric value saved by JAL will need
+      to add 1 to their expected values.
+    - Fixed JR to jump directly to the value in rs (no +1 adjustment needed now that JAL
+      saves the correct return address).
+    - JR x0 is now a defined special case: jumps to line 1 (program restart). Since x0 is
+      always 0 and 0 is not a valid line number, this provides a convenient restart without
+      requiring a label on line 1.
+    - Updated all tests: JAL return-address assertions updated (x1=3→4 etc.),
+      JR test comments corrected, new JR x0 restart test added. 82 tests total.
+    - README: JAL/JR table entries updated; subroutine example rewritten — the old version
+      needed an awkward BGT workaround because JAL saved the wrong value; the new example
+      is clean and straightforward.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.7
 Date: 29. 03. 2026
   Features:

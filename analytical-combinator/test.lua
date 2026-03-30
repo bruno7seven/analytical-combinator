@@ -354,10 +354,10 @@ describe("CPU tests", function()
 
         assert.is_true(myCpu:is_halted())
         assert.are.equal(result, 13)
-        assert.are.equal(x1, 3)
-        assert.are.equal(x2, 6)
-        assert.are.equal(x3, 9)
-        assert.are.equal(x4, 12)
+        assert.are.equal(x1, 4)
+        assert.are.equal(x2, 7)
+        assert.are.equal(x3, 10)
+        assert.are.equal(x4, 13)
     end)
 
     it("can BEQ (branch if equal)", function()
@@ -932,16 +932,16 @@ describe("CPU tests", function()
     -- ── JR (jump register — subroutine return) ────────────────────────────────
 
     it("JR returns to instruction after JAL call site", function()
-        -- JAL saves its own line number; JR advances past it (+1)
+        -- JAL now saves IP+1 (the return address), so JR jumps directly to that value.
         local code = {
             "main:",
             "    ADDI x10, x0, 1",     -- line 2
-            "    JAL  x1, my_func",    -- line 3: x1 = 3, jump to line 5
-            "    ADDI x10, x10, 10",   -- line 4: should execute after return
-            "    HLT",                 -- line 5... wait, labels shift numbering
+            "    JAL  x1, my_func",    -- line 3: x1 = 4, jump to my_func
+            "    ADDI x10, x10, 10",   -- line 4: resume here after return
+            "    HLT",                 -- line 5
             "my_func:",
             "    ADDI x10, x10, 100",
-            "    JR   x1",             -- return to line 4 (3+1)
+            "    JR   x1",             -- return to line 4 directly
         }
         local myCpu = cpu.new(code)
         while not myCpu:is_halted() do myCpu:step() end
@@ -965,6 +965,20 @@ describe("CPU tests", function()
         local myCpu = cpu.new(code)
         while not myCpu:is_halted() do myCpu:step() end
         assert.are.equal(30, myCpu:get_register("x10"))
+    end)
+
+    it("JR x0 jumps to line 1 (restart)", function()
+        -- x0 is always 0; JR x0 is a special case that restarts the program
+        local code = {
+            "ADDI x10, x10, 1",    -- line 1: increment counter
+            "SLTI x6,  x10, 3",    -- line 2: x6=1 if x10 < 3
+            "BNE  x6,  x0,  loop", -- line 3: loop if not done
+            "HLT",                 -- line 4
+            "loop: JR x0",         -- line 5: jump to line 1
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(3, myCpu:get_register("x10"))
     end)
 
     it("JR with wrong arg count sets error", function()

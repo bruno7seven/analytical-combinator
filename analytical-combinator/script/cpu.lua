@@ -283,7 +283,9 @@ function module:step()
             return
         end
         if args[1] ~= "x0" then
-            self.registers[args[1]] = self.instruction_pointer
+            -- Save IP+1: the line after this JAL, which is where JR should return to.
+            -- This matches standard RISC-V convention (save PC+4, i.e. next instruction).
+            self.registers[args[1]] = self.instruction_pointer + 1
         end
         self.instruction_pointer = target
         self.status.jump_executed = true
@@ -721,8 +723,12 @@ function module:step()
         end
     elseif instruction == "JR" then
         -- Jump register: JR rs
-        -- Jumps to the instruction at line (rs + 1), which is the line after the JAL
-        -- that saved the return address into rs. This is the subroutine return instruction.
+        -- Jumps to the line stored in rs, which JAL now saves as IP+1 (the instruction
+        -- after the call site). This is the standard subroutine return instruction.
+        --
+        -- Special case: JR x0 always jumps to line 1 (top of program), since x0 is
+        -- hardwired to 0 and 0 is not a valid line number. This provides a convenient
+        -- unconditional restart without requiring a label on line 1.
         if #args ~= 1 then
             self.status.error = true
             table.insert(self.errors,
@@ -736,9 +742,8 @@ function module:step()
                 "[JR:" .. self.instruction_pointer .. "] Invalid register name: " .. args[1])
             return
         end
-        -- JAL saves the line number of the JAL instruction itself.
-        -- JR must advance one line past it to resume after the call site.
-        local target = rs + 1
+        -- x0 is always 0; treat JR x0 as "jump to line 1" (restart)
+        local target = (rs == 0) and 1 or rs
         if target < 1 or target > #self.memory then
             self.status.error = true
             table.insert(self.errors,
