@@ -383,6 +383,127 @@ function module:step()
             end
             self.registers[args[1]] = rs * rt
         end
+    elseif instruction == "MULI" then
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[MULI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs  = self.registers[args[2]]
+            local imm = tonumber(args[3])
+            if rs == nil or imm == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[MULI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
+                return
+            end
+            self.registers[args[1]] = rs * imm
+        end
+    elseif instruction == "DIV" then
+        -- Integer division: DIV rd, rs, rt  =>  rd = floor(rs / rt)
+        -- Matches Lua's integer division behaviour (truncates toward negative infinity).
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[DIV:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[DIV:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            if rt == 0 then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[DIV:" .. self.instruction_pointer .. "] Division by zero")
+                return
+            end
+            self.registers[args[1]] = math.floor(rs / rt)
+        end
+    elseif instruction == "DIVI" then
+        -- Integer division by immediate: DIVI rd, rs, imm  =>  rd = floor(rs / imm)
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[DIVI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs  = self.registers[args[2]]
+            local imm = tonumber(args[3])
+            if rs == nil or imm == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[DIVI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
+                return
+            end
+            if imm == 0 then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[DIVI:" .. self.instruction_pointer .. "] Division by zero")
+                return
+            end
+            self.registers[args[1]] = math.floor(rs / imm)
+        end
+    elseif instruction == "REM" then
+        -- Remainder: REM rd, rs, rt  =>  rd = rs % rt
+        -- Sign of result matches the dividend (rs), consistent with C's % operator
+        -- and RISC-V's REM instruction. Uses Lua's math.fmod for this behaviour.
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[REM:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs = self.registers[args[2]]
+            local rt = self.registers[args[3]]
+            if rs == nil or rt == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[REM:" .. self.instruction_pointer .. "] Invalid register name")
+                return
+            end
+            if rt == 0 then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[REM:" .. self.instruction_pointer .. "] Division by zero")
+                return
+            end
+            self.registers[args[1]] = math.fmod(rs, rt)
+        end
+    elseif instruction == "REMI" then
+        -- Remainder by immediate: REMI rd, rs, imm  =>  rd = rs % imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[REMI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local rs  = self.registers[args[2]]
+            local imm = tonumber(args[3])
+            if rs == nil or imm == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[REMI:" .. self.instruction_pointer .. "] Invalid register or immediate value")
+                return
+            end
+            if imm == 0 then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[REMI:" .. self.instruction_pointer .. "] Division by zero")
+                return
+            end
+            self.registers[args[1]] = math.fmod(rs, imm)
+        end
     elseif instruction == "AND" then
         if #args ~= 3 then
             self.status.error = true

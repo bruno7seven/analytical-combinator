@@ -24,6 +24,11 @@ input (red and green wires) and output circuit network connections.
 | `ADD`  | `rd, rs, rt`  | `rd = rs + rt`  — add two registers |
 | `SUB`  | `rd, rs, rt`  | `rd = rs - rt`  — subtract register |
 | `MUL`  | `rd, rs, rt`  | `rd = rs * rt`  — multiply two registers |
+| `MULI` | `rd, rs, imm` | `rd = rs * imm` — multiply by immediate |
+| `DIV`  | `rd, rs, rt`  | `rd = floor(rs / rt)` — integer division; error on divide-by-zero |
+| `DIVI` | `rd, rs, imm` | `rd = floor(rs / imm)` — divide by immediate; error on zero |
+| `REM`  | `rd, rs, rt`  | `rd = rs % rt` — remainder; sign follows dividend (C-style) |
+| `REMI` | `rd, rs, imm` | `rd = rs % imm` — remainder by immediate |
 
 ### Comparison
 

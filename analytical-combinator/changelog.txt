@@ -1,4 +1,20 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.9
+Date: 29. 03. 2026
+  Features:
+    - Added MULI rd, rs, imm — multiply register by immediate (rd = rs * imm)
+    - Added DIV  rd, rs, rt  — integer division, floor toward -inf (rd = floor(rs/rt))
+    - Added DIVI rd, rs, imm — divide by immediate
+    - Added REM  rd, rs, rt  — remainder, sign follows dividend C-style (math.fmod)
+    - Added REMI rd, rs, imm — remainder by immediate
+    - DIV, DIVI, REM, REMI all produce a descriptive runtime error on divide-by-zero
+      rather than crashing. Lua's math.floor and math.fmod are used to give consistent
+      signed behaviour across all values.
+    - Note: MUL was already present since 0.8.4; MULI is the new immediate variant.
+    - 18 new tests covering basic operation, negative values, divide-by-zero errors,
+      hex immediates, and a practical modulo wrap-around example. 100 tests total.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.8
 Date: 29. 03. 2026
   Changes:

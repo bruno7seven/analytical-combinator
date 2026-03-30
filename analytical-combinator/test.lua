@@ -576,6 +576,154 @@ describe("CPU tests", function()
         assert.is_true(myCpu.status.error)
     end)
 
+    -- ── MULI ─────────────────────────────────────────────────────────────────
+
+    it("MULI multiplies register by immediate", function()
+        local code = { "ADDI x10, x0, 6", "MULI x11, x10, 7", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x11"))
+    end)
+
+    it("MULI by negative immediate", function()
+        local code = { "ADDI x10, x0, 5", "MULI x11, x10, -3", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(-15, myCpu:get_register("x11"))
+    end)
+
+    it("MULI with invalid immediate sets error", function()
+        local myCpu = cpu.new({ "MULI x1, x0, abc" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── DIV ──────────────────────────────────────────────────────────────────
+
+    it("DIV divides two registers (floor division)", function()
+        local code = { "ADDI x10, x0, 17", "ADDI x11, x0, 5", "DIV x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(3, myCpu:get_register("x12"))
+    end)
+
+    it("DIV floors toward negative infinity for negative dividend", function()
+        -- floor(-17 / 5) = floor(-3.4) = -4  (not -3 as C truncation would give)
+        local code = { "ADDI x10, x0, -17", "ADDI x11, x0, 5", "DIV x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(-4, myCpu:get_register("x12"))
+    end)
+
+    it("DIV write to x0 silently ignored", function()
+        local code = { "ADDI x10, x0, 10", "ADDI x11, x0, 2", "DIV x0, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x0"))
+        assert.is_false(myCpu.status.error)
+    end)
+
+    it("DIV by zero sets error", function()
+        local code = { "ADDI x10, x0, 10", "DIV x11, x10, x0", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:step()
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+        assert.are.equal(1, #myCpu:get_errors())
+    end)
+
+    it("DIV with invalid register sets error", function()
+        local myCpu = cpu.new({ "DIV x1, x99, x0" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── DIVI ─────────────────────────────────────────────────────────────────
+
+    it("DIVI divides register by immediate", function()
+        local code = { "ADDI x10, x0, 100", "DIVI x11, x10, 7", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(14, myCpu:get_register("x11"))
+    end)
+
+    it("DIVI by zero sets error", function()
+        local myCpu = cpu.new({ "ADDI x10, x0, 5", "DIVI x11, x10, 0" })
+        myCpu:step()
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("DIVI with hex immediate", function()
+        -- 256 / 0x10 = 256 / 16 = 16
+        local code = { "ADDI x10, x0, 256", "DIVI x11, x10, 0x10", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(16, myCpu:get_register("x11"))
+    end)
+
+    -- ── REM ──────────────────────────────────────────────────────────────────
+
+    it("REM returns remainder (sign matches dividend)", function()
+        local code = { "ADDI x10, x0, 17", "ADDI x11, x0, 5", "REM x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(2, myCpu:get_register("x12"))
+    end)
+
+    it("REM with negative dividend gives negative remainder (C-style)", function()
+        -- fmod(-17, 5) = -2  (sign follows dividend, same as C %)
+        local code = { "ADDI x10, x0, -17", "ADDI x11, x0, 5", "REM x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(-2, myCpu:get_register("x12"))
+    end)
+
+    it("REM useful for modulo / wrap-around", function()
+        -- Use REM to keep a counter in range 0..7 (3 bits)
+        local code = {
+            "ADDI x10, x0, 25",   -- some value
+            "ADDI x11, x0, 8",
+            "REM  x12, x10, x11", -- x12 = 25 mod 8 = 1
+            "HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(1, myCpu:get_register("x12"))
+    end)
+
+    it("REM by zero sets error", function()
+        local code = { "ADDI x10, x0, 10", "REM x11, x10, x0", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:step()
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── REMI ─────────────────────────────────────────────────────────────────
+
+    it("REMI returns remainder against immediate", function()
+        local code = { "ADDI x10, x0, 100", "REMI x11, x10, 7", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(2, myCpu:get_register("x11"))
+    end)
+
+    it("REMI by zero sets error", function()
+        local myCpu = cpu.new({ "ADDI x10, x0, 5", "REMI x11, x10, 0" })
+        myCpu:step()
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("REMI with hex immediate", function()
+        -- 255 rem 0x10 = 255 rem 16 = 15
+        local code = { "ADDI x10, x0, 255", "REMI x11, x10, 0x10", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(15, myCpu:get_register("x11"))
+    end)
+
     -- ── AND ──────────────────────────────────────────────────────────────────
 
     it("AND performs bitwise AND", function()
