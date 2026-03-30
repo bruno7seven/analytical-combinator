@@ -1,4 +1,28 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.10
+Date: 29. 03. 2026
+  Bugfixes:
+    - Fixed BEQ and BNE: missing register nil-checks meant that a literal (e.g. BEQ x3, 0,
+      label) or invalid register (e.g. BEQ x3, x99, label) was silently miscompared rather
+      than raising an error. nil==nil is true in Lua, so BEQ x3, x99 would always branch
+      regardless of x3; BEQ x3, 0 would never branch. Both now validate both operands first.
+    - Fixed WSIG: the count source register (third argument) had no nil check. An invalid
+      register name would silently emit a signal with count nil (treated as 0).
+    - Fixed JAL: the destination register for the saved return address had no nil check.
+      Writing to an invalid key (e.g. x99) would silently create a junk table entry.
+    - Fixed SLT: added nil check on the destination register (first argument).
+  Features:
+    - Added BEQI rs, imm, label — branch if rs == immediate value
+    - Added BNEI rs, imm, label — branch if rs != immediate value
+    - Added BLTI rs, imm, label — branch if rs < immediate value
+    - Added BLEI rs, imm, label — branch if rs <= immediate value
+    - Added BGTI rs, imm, label — branch if rs > immediate value
+    - Added BGEI rs, imm, label — branch if rs >= immediate value
+    - All immediate branches accept hex literals (0x prefix) and validate both the
+      register and immediate operands, erroring cleanly on invalid input.
+    - 20 new tests including regression tests for the nil-check bugs. 120 tests total.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.9
 Date: 29. 03. 2026
   Features:

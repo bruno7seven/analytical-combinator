@@ -538,6 +538,148 @@ describe("CPU tests", function()
         assert.are.equal(1, #myCpu:get_errors())
     end)
 
+    it("BEQ with literal second argument sets error (not a register)", function()
+        -- Regression test: BEQ x3, 0, label was silently miscompared as nil==nil
+        local myCpu = cpu.new({ "BEQ x0, 0, skip", "skip: HLT" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("BEQ with invalid register sets error", function()
+        local myCpu = cpu.new({ "BEQ x0, x99, skip", "skip: HLT" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("BNE with literal second argument sets error", function()
+        local myCpu = cpu.new({ "BNE x0, 1, skip", "skip: HLT" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("WSIG with invalid source register sets error", function()
+        local myCpu = cpu.new({ "WSIG o0, signal-A, x99" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("JAL with invalid destination register sets error", function()
+        local myCpu = cpu.new({ "dest: JAL x99, dest" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── Immediate branch instructions ─────────────────────────────────────────
+
+    it("BEQI branches when rs == immediate", function()
+        local code = { "ADDI x10, x0, 42", "BEQI x10, 42, done", "ADDI x11, x0, 99", "done: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
+    end)
+
+    it("BEQI does not branch when rs ~= immediate", function()
+        local code = { "ADDI x10, x0, 41", "BEQI x10, 42, skip", "ADDI x11, x0, 7", "skip: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(7, myCpu:get_register("x11"))
+    end)
+
+    it("BEQI accepts hex immediate", function()
+        local code = { "ADDI x10, x0, 255", "BEQI x10, 0xFF, done", "ADDI x11, x0, 99", "done: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
+    end)
+
+    it("BNEI branches when rs ~= immediate", function()
+        local code = { "ADDI x10, x0, 5", "BNEI x10, 42, done", "ADDI x11, x0, 99", "done: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
+    end)
+
+    it("BNEI does not branch when rs == immediate", function()
+        local code = { "ADDI x10, x0, 42", "BNEI x10, 42, skip", "ADDI x11, x0, 7", "skip: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(7, myCpu:get_register("x11"))
+    end)
+
+    it("BLTI branches when rs < immediate", function()
+        local code = { "ADDI x10, x0, 5", "BLTI x10, 10, done", "ADDI x11, x0, 99", "done: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
+    end)
+
+    it("BLTI does not branch when rs >= immediate", function()
+        local code = { "ADDI x10, x0, 10", "BLTI x10, 10, skip", "ADDI x11, x0, 7", "skip: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(7, myCpu:get_register("x11"))
+    end)
+
+    it("BLEI branches when rs == immediate", function()
+        local code = { "ADDI x10, x0, 10", "BLEI x10, 10, done", "ADDI x11, x0, 99", "done: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
+    end)
+
+    it("BGTI branches when rs > immediate", function()
+        local code = { "ADDI x10, x0, 11", "BGTI x10, 10, done", "ADDI x11, x0, 99", "done: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
+    end)
+
+    it("BGTI does not branch when rs == immediate", function()
+        local code = { "ADDI x10, x0, 10", "BGTI x10, 10, skip", "ADDI x11, x0, 7", "skip: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(7, myCpu:get_register("x11"))
+    end)
+
+    it("BGEI branches when rs >= immediate", function()
+        local code = { "ADDI x10, x0, 10", "BGEI x10, 10, done", "ADDI x11, x0, 99", "done: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x11"))
+    end)
+
+    it("BGEI does not branch when rs < immediate", function()
+        local code = { "ADDI x10, x0, 9", "BGEI x10, 10, skip", "ADDI x11, x0, 7", "skip: HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(7, myCpu:get_register("x11"))
+    end)
+
+    it("immediate branch with invalid register sets error", function()
+        local myCpu = cpu.new({ "BEQI x99, 0, skip", "skip: HLT" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("immediate branch with non-numeric immediate sets error", function()
+        local myCpu = cpu.new({ "BEQI x0, abc, skip", "skip: HLT" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("BNEI used to loop: counts to 5 using immediate branch", function()
+        -- Practical use: tight loop without needing a comparison register
+        local code = {
+            "loop:",
+            "    ADDI x10, x10, 1",
+            "    BNEI x10, 5, loop",
+            "    HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(5, myCpu:get_register("x10"))
+    end)
+
     it("handles BNE to undefined label without crashing", function()
         local myCpu = cpu.new({ "ADDI x1, x0, 1", "BNE x1, x0, nonexistent", "HLT" })
         myCpu:step()

@@ -192,6 +192,12 @@ function module:step()
                 "[SLT:" .. self.instruction_pointer .. "] Invalid register name")
             return
         end
+        if self.registers[args[1]] == nil and args[1] ~= "x0" then
+            self.status.error = true
+            table.insert(self.errors,
+                "[SLT:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
+            return
+        end
         if rs < rt then
             self.registers[args[1]] = 1
         else
@@ -259,7 +265,14 @@ function module:step()
         end
         local output_register_pattern = "^o"
         if args[1]:find(output_register_pattern) ~= nil then
-            self.registers[args[1]] = { name = args[2], count = self.registers[args[3]] }
+            local count_reg = self.registers[args[3]]
+            if count_reg == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[WSIG:" .. self.instruction_pointer .. "] Invalid source register: " .. args[3])
+                return
+            end
+            self.registers[args[1]] = { name = args[2], count = count_reg }
         else
             self.status.error = true
             table.insert(self.errors,
@@ -285,6 +298,12 @@ function module:step()
         if args[1] ~= "x0" then
             -- Save IP+1: the line after this JAL, which is where JR should return to.
             -- This matches standard RISC-V convention (save PC+4, i.e. next instruction).
+            if self.registers[args[1]] == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[JAL:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
+                return
+            end
             self.registers[args[1]] = self.instruction_pointer + 1
         end
         self.instruction_pointer = target
@@ -297,7 +316,15 @@ function module:step()
                 self.instruction_pointer .. "] " .. "Unexpected number of arguments, expected 3, got " .. #args)
             return
         end
-        if self.registers[args[1]] == self.registers[args[2]] then
+        local rs = self.registers[args[1]]
+        local rt = self.registers[args[2]]
+        if rs == nil or rt == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BEQ:" .. self.instruction_pointer .. "] Invalid register name")
+            return
+        end
+        if rs == rt then
             local target = self.labels[args[3]]
             if target == nil then
                 self.status.error = true
@@ -316,7 +343,15 @@ function module:step()
                 self.instruction_pointer .. "] " .. "Unexpected number of arguments, expected 3, got " .. #args)
             return
         end
-        if self.registers[args[1]] ~= self.registers[args[2]] then
+        local rs = self.registers[args[1]]
+        local rt = self.registers[args[2]]
+        if rs == nil or rt == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BNE:" .. self.instruction_pointer .. "] Invalid register name")
+            return
+        end
+        if rs ~= rt then
             local target = self.labels[args[3]]
             if target == nil then
                 self.status.error = true
@@ -873,6 +908,204 @@ function module:step()
         end
         self.instruction_pointer = target
         self.status.jump_executed = true
+        elseif instruction == "BEQI" then
+        -- BEQI rs, imm, label — branch if rs == imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BEQI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        local rs  = self.registers[args[1]]
+        local imm = tonumber(args[2])
+        if rs == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BEQI:" .. self.instruction_pointer .. "] Invalid register name: " .. args[1])
+            return
+        end
+        if imm == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BEQI:" .. self.instruction_pointer .. "] Invalid immediate value: " .. args[2])
+            return
+        end
+        if rs == imm then
+            local target = self.labels[args[3]]
+            if target == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[BEQI:" .. self.instruction_pointer .. "] Undefined label: " .. args[3])
+                return
+            end
+            self.instruction_pointer = target
+            self.status.jump_executed = true
+        end
+    elseif instruction == "BNEI" then
+        -- BNEI rs, imm, label — branch if rs ~= imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BNEI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        local rs  = self.registers[args[1]]
+        local imm = tonumber(args[2])
+        if rs == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BNEI:" .. self.instruction_pointer .. "] Invalid register name: " .. args[1])
+            return
+        end
+        if imm == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BNEI:" .. self.instruction_pointer .. "] Invalid immediate value: " .. args[2])
+            return
+        end
+        if rs ~= imm then
+            local target = self.labels[args[3]]
+            if target == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[BNEI:" .. self.instruction_pointer .. "] Undefined label: " .. args[3])
+                return
+            end
+            self.instruction_pointer = target
+            self.status.jump_executed = true
+        end
+    elseif instruction == "BLTI" then
+        -- BLTI rs, imm, label — branch if rs < imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BLTI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        local rs  = self.registers[args[1]]
+        local imm = tonumber(args[2])
+        if rs == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BLTI:" .. self.instruction_pointer .. "] Invalid register name: " .. args[1])
+            return
+        end
+        if imm == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BLTI:" .. self.instruction_pointer .. "] Invalid immediate value: " .. args[2])
+            return
+        end
+        if rs < imm then
+            local target = self.labels[args[3]]
+            if target == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[BLTI:" .. self.instruction_pointer .. "] Undefined label: " .. args[3])
+                return
+            end
+            self.instruction_pointer = target
+            self.status.jump_executed = true
+        end
+    elseif instruction == "BLEI" then
+        -- BLEI rs, imm, label — branch if rs <= imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BLEI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        local rs  = self.registers[args[1]]
+        local imm = tonumber(args[2])
+        if rs == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BLEI:" .. self.instruction_pointer .. "] Invalid register name: " .. args[1])
+            return
+        end
+        if imm == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BLEI:" .. self.instruction_pointer .. "] Invalid immediate value: " .. args[2])
+            return
+        end
+        if rs <= imm then
+            local target = self.labels[args[3]]
+            if target == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[BLEI:" .. self.instruction_pointer .. "] Undefined label: " .. args[3])
+                return
+            end
+            self.instruction_pointer = target
+            self.status.jump_executed = true
+        end
+    elseif instruction == "BGTI" then
+        -- BGTI rs, imm, label — branch if rs > imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BGTI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        local rs  = self.registers[args[1]]
+        local imm = tonumber(args[2])
+        if rs == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BGTI:" .. self.instruction_pointer .. "] Invalid register name: " .. args[1])
+            return
+        end
+        if imm == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BGTI:" .. self.instruction_pointer .. "] Invalid immediate value: " .. args[2])
+            return
+        end
+        if rs > imm then
+            local target = self.labels[args[3]]
+            if target == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[BGTI:" .. self.instruction_pointer .. "] Undefined label: " .. args[3])
+                return
+            end
+            self.instruction_pointer = target
+            self.status.jump_executed = true
+        end
+    elseif instruction == "BGEI" then
+        -- BGEI rs, imm, label — branch if rs >= imm
+        if #args ~= 3 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BGEI:" .. self.instruction_pointer .. "] Expected 3 arguments, got " .. #args)
+            return
+        end
+        local rs  = self.registers[args[1]]
+        local imm = tonumber(args[2])
+        if rs == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BGEI:" .. self.instruction_pointer .. "] Invalid register name: " .. args[1])
+            return
+        end
+        if imm == nil then
+            self.status.error = true
+            table.insert(self.errors,
+                "[BGEI:" .. self.instruction_pointer .. "] Invalid immediate value: " .. args[2])
+            return
+        end
+        if rs >= imm then
+            local target = self.labels[args[3]]
+            if target == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[BGEI:" .. self.instruction_pointer .. "] Undefined label: " .. args[3])
+                return
+            end
+            self.instruction_pointer = target
+            self.status.jump_executed = true
+        end
         else
         if instruction ~= nil then
             table.insert(self.errors, "Unexpected instruction on line " .. self.instruction_pointer .. ": " ..

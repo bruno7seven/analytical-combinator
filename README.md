@@ -66,14 +66,20 @@ use when treating the value as a signed integer).
 
 | Instruction | Syntax | Description |
 |---|---|---|
-| `JAL` | `rd, label`     | Jump to label; save address of next instruction in rd (use x0 to discard) |
-| `JR`  | `rs`            | Jump to address in rs — subroutine return. `JR x0` restarts from line 1. |
-| `BEQ` | `rs, rt, label` | Branch if rs == rt |
-| `BNE` | `rs, rt, label` | Branch if rs != rt |
-| `BLT` | `rs, rt, label` | Branch if rs < rt |
-| `BLE` | `rs, rt, label` | Branch if rs <= rt |
-| `BGT` | `rs, rt, label` | Branch if rs > rt |
-| `BGE` | `rs, rt, label` | Branch if rs >= rt |
+| `JAL`  | `rd, label`      | Jump to label; save address of next instruction in rd (use x0 to discard) |
+| `JR`   | `rs`             | Jump to address in rs — subroutine return. `JR x0` restarts from line 1. |
+| `BEQ`  | `rs, rt, label`  | Branch if rs == rt |
+| `BNE`  | `rs, rt, label`  | Branch if rs != rt |
+| `BLT`  | `rs, rt, label`  | Branch if rs < rt |
+| `BLE`  | `rs, rt, label`  | Branch if rs <= rt |
+| `BGT`  | `rs, rt, label`  | Branch if rs > rt |
+| `BGE`  | `rs, rt, label`  | Branch if rs >= rt |
+| `BEQI` | `rs, imm, label` | Branch if rs == imm (immediate) |
+| `BNEI` | `rs, imm, label` | Branch if rs != imm |
+| `BLTI` | `rs, imm, label` | Branch if rs < imm |
+| `BLEI` | `rs, imm, label` | Branch if rs <= imm |
+| `BGTI` | `rs, imm, label` | Branch if rs > imm |
+| `BGEI` | `rs, imm, label` | Branch if rs >= imm |
 
 ### Circuit network output
 
