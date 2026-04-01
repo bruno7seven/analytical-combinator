@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.12
+Date: 01. 04. 2026
+  Bugfixes:
+    - Fixed changelog.txt format so the in-game mod changelog GUI displays correctly.
+      Problems were: double separator lines between every version section; two early
+      version entries missing Version: lines (assigned 0.7.1 and 0.7.2); non-standard
+      category name 'Documentation:' replaced with 'Info:'; trailing whitespace stripped.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.11
 Date: 01. 04. 2026
   Features:
@@ -9,7 +17,7 @@ Date: 01. 04. 2026
       mixed case (ADDI, addi, Addi). The mnemonic is uppercased once during parsing via
       instruction:upper() before any comparison. Register names (x0-x31, o0-o3) and signal
       names remain case-sensitive as Factorio requires.
-  Documentation:
+  Info:
     - Updated README.md and LICENSE.md to user-supplied versions. LICENSE now retains
       Joakim Lönnegren's original MIT copyright alongside the Analytical Combinator
       contributors' copyright. README includes Credits section acknowledging the original
@@ -19,7 +27,6 @@ Date: 01. 04. 2026
     - 12 new tests (132 total): LI basic use, hex/negative immediates, x0 suppression,
       overwrite, error cases; case-insensitive mnemonic tests including a lower-case
       loop with BNEI; signal/register case-sensitivity confirmation.
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.10
 Date: 29. 03. 2026
@@ -44,7 +51,6 @@ Date: 29. 03. 2026
       register and immediate operands, erroring cleanly on invalid input.
     - 20 new tests including regression tests for the nil-check bugs. 120 tests total.
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.8.9
 Date: 29. 03. 2026
   Features:
@@ -59,7 +65,6 @@ Date: 29. 03. 2026
     - Note: MUL was already present since 0.8.4; MULI is the new immediate variant.
     - 18 new tests covering basic operation, negative values, divide-by-zero errors,
       hex immediates, and a practical modulo wrap-around example. 100 tests total.
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.8
 Date: 29. 03. 2026
@@ -80,7 +85,6 @@ Date: 29. 03. 2026
       needed an awkward BGT workaround because JAL saved the wrong value; the new example
       is clean and straightforward.
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.8.7
 Date: 29. 03. 2026
   Features:
@@ -95,7 +99,6 @@ Date: 29. 03. 2026
       instructions, JR call/return, nested calls with distinct return registers,
       and error cases.
     - README: control flow table updated; new subroutine call/return example.
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.6
 Date: 29. 03. 2026
@@ -114,19 +117,17 @@ Date: 29. 03. 2026
       avoid re-evaluating it on every tick.
     - Fixed indentation bug: the else clause of the instruction dispatcher was
       accidentally indented inside the CNTSG block.
-  Documentation:
+  Info:
     - README Shifts table expanded to all six variants with logical/arithmetic distinction noted.
     - README new section "Immediate value formats" documents decimal, hex, and negative literals.
     - Test suite: shift tests renamed; 4 new tests contrasting SRL/SRLI (zero-fill) against
       SRA/SRAI (sign-extend) on negative values. 65 tests total.
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.5
 Date: 29. 03. 2026
   Bugfixes:
     - Fixed bitwise instruction implementation to use bit32 or bit library functions rather
       than typical operators.
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.4
 Date: 29. 03. 2026
@@ -148,7 +149,6 @@ Date: 29. 03. 2026
     - README: Bitwise and Shifts instruction tables added; CNTSR/CNTSG added to
       circuit input table; two new examples (bit masking, signal presence detection)
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.8.3
 Date: 29. 03. 2026
   Bugfixes:
@@ -156,7 +156,6 @@ Date: 29. 03. 2026
       claiming to output a sum. Replaced with two correct ADD-based examples:
       "Red/green signal sum" (continuous summing loop) and "Red/green sum with threshold gate"
       (fires signal-A once combined total exceeds 500).
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.2
 Date: 29. 03. 2026
@@ -170,7 +169,6 @@ Date: 29. 03. 2026
     - README: ADD added to instruction table; new example showing red+green signal sum
       with threshold gate.
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.8.1
 Date: 29. 03. 2026
   Features:
@@ -178,7 +176,6 @@ Date: 29. 03. 2026
       descriptor). A FontPrototype "ac-mono-14" is declared in prototypes/fonts.lua and applied
       to the text-box at GUI creation time via textbox.style.font. No external TTF file is
       required as NotoMono-Regular.ttf ships with Factorio core.
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.0
 Date: 29. 03. 2026
@@ -190,7 +187,6 @@ Date: 29. 03. 2026
     - Rewrote all locale descriptions in locale/en/base.cfg to specifically describe the
       assembly-language programming model rather than generic combinator marketing copy
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.7.9
 Date: 29. 03. 2026
   Changes:
@@ -201,7 +197,6 @@ Date: 29. 03. 2026
     - Updated mod description to better reflect RISC-V inspired assembly language and
       dual-wire input capability.
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.7.8
 Date: 28. 03. 2026
   Bugfixes:
@@ -211,15 +206,13 @@ Date: 28. 03. 2026
       prototypes.virtual_signal, prototypes.item, and prototypes.fluid in that order to
       determine the correct type. Invalid signal names are silently skipped rather than crashing.
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.7.7
 Date: 28. 03. 2026
-  Documentation:
+  Info:
     - Fixed incorrect README description for the Threshold Gate example which claimed the
       output signal appeared "on the red wire". WSIG writes to an output register with no
       wire-colour specificity; the signal appears on whichever wire(s) are physically connected
       to the output side of the combinator.
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.6
 Date: 28. 03. 2026
@@ -230,7 +223,6 @@ Date: 28. 03. 2026
       pure constant condition (first_constant=0, comparator="=", second_constant=0) which
       references no signals at all and has no side effects on the network.
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.7.5
 Date: 28. 03. 2026
   Bugfixes:
@@ -239,7 +231,6 @@ Date: 28. 03. 2026
       wire_connector_id (e.g. combinator_input_red / combinator_input_green) rather than a
       wire_type + circuit_connector_id pair. Fixed in both events.lua and gui.lua.
 ---------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------
 Version: 0.7.4
 Date: 28. 03. 2026
   Bugfixes:
@@ -247,7 +238,6 @@ Date: 28. 03. 2026
       circuit_connector_id for entities with separate input and output connectors. Without it
       the call returns nil on a decider combinator. Both events.lua and gui.lua now pass
       defines.circuit_connector_id.combinator_input when reading the input-side network.
----------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.3
 Date: 28. 03. 2026
@@ -258,7 +248,7 @@ Date: 28. 03. 2026
       on_configuration_changed (mod update). Also backfills the input_signals field for saves
       predating 0.7.0 that were created without it.
 ---------------------------------------------------------------------------------------------------
-
+Version: 0.7.2
 Date: 28. 03. 2026
   Bugfixes:
     - Fixed crash on placement: LuaDeciderCombinatorControlBehavior does not expose
@@ -266,7 +256,7 @@ Date: 28. 03. 2026
       Output writing now uses behavior.parameters with a conditions+outputs table, which is
       the correct 2.0 API for decider combinators. Clearing outputs uses behavior.parameters=nil.
 ---------------------------------------------------------------------------------------------------
-
+Version: 0.7.1
 Date: 28. 03. 2026
   Graphics:
     - Added custom microchip display sprite (30x22) replacing the decider combinator's
