@@ -39,6 +39,38 @@ function module.extract_label_name(line)
     return line:match(label_name_pattern)
 end
 
+function module.validate_signals(memory)
+    -- Scan the program once at load time and return a list of error strings for
+    -- any signal names that do not exist in Factorio's prototype tables.
+    -- Called from new() and update_code() so per-tick handlers need no validation.
+    local signal_instructions = { RSIG=2, RSIGR=2, RSIGG=2, WSIG=2 }
+    -- WSIG od, signal, rs  -> signal is args[2] (index 2 after mnemonic removed)
+    -- RSIG/RSIGR/RSIGG rd, signal -> signal is args[2]
+    local errors = {}
+    for line_num, line in ipairs(memory) do
+        -- Strip label, comments, and whitespace the same way step() does
+        local stripped = line:gsub("^[^:]*:%s*", "")
+                             :gsub("#.*", "")
+                             :gsub("%s+$", "")
+        local tokens = {}
+        for tok in string.gmatch(stripped, "[^%s,]+") do
+            table.insert(tokens, tok)
+        end
+        if #tokens >= 1 then
+            local mnemonic = tokens[1]:upper()
+            local sig_arg_pos = signal_instructions[mnemonic]
+            if sig_arg_pos and #tokens >= sig_arg_pos then
+                local sig_name = tokens[sig_arg_pos]
+                if not valid_signal_name(sig_name) then
+                    table.insert(errors,
+                        "[" .. mnemonic .. ":" .. line_num .. "] Unknown signal name: " .. sig_name)
+                end
+            end
+        end
+    end
+    return errors
+end
+
 function module.new(code)
     local cpuClass = setmetatable({}, module)
 
@@ -69,6 +101,16 @@ function module.new(code)
         green = {},
     }
 
+    -- Validate all signal names used in the program up front so per-tick
+    -- handlers do not need to call into prototypes on every execution.
+    local sig_errors = module.validate_signals(memory)
+    for _, e in ipairs(sig_errors) do
+        table.insert(cpuClass.errors, e)
+    end
+    if #sig_errors > 0 then
+        cpuClass.status.error = true
+    end
+
     return cpuClass
 end
 
@@ -97,6 +139,15 @@ function module:update_code(code)
         red   = {},
         green = {},
     }
+
+    -- Re-validate signal names whenever code changes.
+    local sig_errors = module.validate_signals(memory)
+    for _, e in ipairs(sig_errors) do
+        table.insert(self.errors, e)
+    end
+    if #sig_errors > 0 then
+        self.status.error = true
+    end
 end
 
 function module:get_code()
@@ -312,12 +363,6 @@ function module:step()
                     "[WSIG:" .. self.instruction_pointer .. "] Invalid source register: " .. args[3])
                 return
             end
-            if not valid_signal_name(args[2]) then
-                self.status.error = true
-                table.insert(self.errors,
-                    "[WSIG:" .. self.instruction_pointer .. "] Unknown signal name: " .. args[2])
-                return
-            end
             self.registers[args[1]] = { name = args[2], count = count_reg }
         else
             self.status.error = true
@@ -425,12 +470,6 @@ function module:step()
                     "[RSIGR:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
                 return
             end
-            if not valid_signal_name(args[2]) then
-                self.status.error = true
-                table.insert(self.errors,
-                    "[RSIGR:" .. self.instruction_pointer .. "] Unknown signal name: " .. args[2])
-                return
-            end
             self.registers[args[1]] = self.input_signals.red[args[2]] or 0
         end
     elseif instruction == "RSIGG" then
@@ -448,12 +487,6 @@ function module:step()
                 self.status.error = true
                 table.insert(self.errors,
                     "[RSIGG:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
-                return
-            end
-            if not valid_signal_name(args[2]) then
-                self.status.error = true
-                table.insert(self.errors,
-                    "[RSIGG:" .. self.instruction_pointer .. "] Unknown signal name: " .. args[2])
                 return
             end
             self.registers[args[1]] = self.input_signals.green[args[2]] or 0
@@ -474,12 +507,6 @@ function module:step()
                 self.status.error = true
                 table.insert(self.errors,
                     "[RSIG:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
-                return
-            end
-            if not valid_signal_name(args[2]) then
-                self.status.error = true
-                table.insert(self.errors,
-                    "[RSIG:" .. self.instruction_pointer .. "] Unknown signal name: " .. args[2])
                 return
             end
             local red_val   = self.input_signals.red[args[2]]   or 0

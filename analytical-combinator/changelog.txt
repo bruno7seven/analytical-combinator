@@ -1,4 +1,20 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.15
+Date: 01. 04. 2026
+  Optimizations:
+    - Moved signal name validation from per-tick (inside step()) to load time
+      (inside new() and update_code()). Previously valid_signal_name() was called
+      into Factorio's prototype tables on every tick for every RSIG, RSIGR, RSIGG,
+      and WSIG instruction. It now runs once via validate_signals() when the program
+      is loaded or saved, with zero overhead during normal execution.
+    - validate_signals() scans the program's token stream, identifies signal-name
+      arguments in the four affected instructions, and pre-populates self.errors
+      with descriptive messages for any unknown names. The CPU starts in error state
+      immediately rather than discovering the problem mid-execution.
+    - Updated tests: validation tests no longer call step() before checking errors.
+      Added test confirming update_code() re-validates signal names.
+      144 tests total.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.14
 Date: 01. 04. 2026
   Features:

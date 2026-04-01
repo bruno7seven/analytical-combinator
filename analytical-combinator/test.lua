@@ -851,9 +851,9 @@ describe("CPU tests", function()
         assert.is_false(myCpu.status.error)
     end)
 
-    it("RSIG with unknown signal name sets error", function()
+    it("RSIG with unknown signal name sets error at load time", function()
         local myCpu = cpu.new({ "RSIG x10, not-a-real-signal" })
-        myCpu:step()
+        -- Validation runs in new(), no step() needed
         assert.is_true(myCpu.status.error)
         assert.is_true(#myCpu:get_errors() > 0)
     end)
@@ -872,25 +872,30 @@ describe("CPU tests", function()
 
     -- ── Signal name validation ────────────────────────────────────────────────
 
-    it("RSIGR with unknown signal name sets error", function()
+    it("RSIGR with unknown signal name sets error at load time", function()
         local myCpu = cpu.new({ "RSIGR x10, not-a-real-signal" })
-        myCpu:step()
         assert.is_true(myCpu.status.error)
         assert.is_true(myCpu:get_errors()[1]:find("Unknown signal") ~= nil)
     end)
 
-    it("RSIGG with unknown signal name sets error", function()
+    it("RSIGG with unknown signal name sets error at load time", function()
         local myCpu = cpu.new({ "RSIGG x10, not-a-real-signal" })
-        myCpu:step()
         assert.is_true(myCpu.status.error)
     end)
 
-    it("WSIG with unknown signal name sets error", function()
+    it("WSIG with unknown signal name sets error at load time", function()
         local myCpu = cpu.new({ "LI x10, 1", "WSIG o0, not-a-real-signal, x10" })
-        local myCpu2 = cpu.new({ "LI x10, 1", "WSIG o0, not-a-real-signal, x10" })
-        myCpu2:step()  -- LI
-        myCpu2:step()  -- WSIG
-        assert.is_true(myCpu2.status.error)
+        assert.is_true(myCpu.status.error)
+        assert.is_true(#myCpu:get_errors() > 0)
+    end)
+
+    it("update_code re-validates signal names", function()
+        -- Start with valid code, then update to invalid signal name
+        local myCpu = cpu.new({ "RSIGR x10, iron-plate", "HLT" })
+        assert.is_false(myCpu.status.error)
+        myCpu:update_code({ "RSIGR x10, not-a-real-signal", "HLT" })
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("Unknown signal") ~= nil)
     end)
 
     it("RSIGR with known signal name does not error when signal is absent from wire", function()
