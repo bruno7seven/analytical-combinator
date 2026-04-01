@@ -189,6 +189,105 @@ describe("CPU tests", function()
         assert.is_true(myCpu:is_halted())
     end)
 
+    -- ── LI ───────────────────────────────────────────────────────────────────
+
+    it("LI loads an immediate value into a register", function()
+        local code = { "LI x10, 42", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x10"))
+    end)
+
+    it("LI accepts hex immediate", function()
+        local code = { "LI x10, 0xFF", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(255, myCpu:get_register("x10"))
+    end)
+
+    it("LI accepts negative immediate", function()
+        local code = { "LI x10, -99", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(-99, myCpu:get_register("x10"))
+    end)
+
+    it("LI write to x0 silently ignored", function()
+        local code = { "LI x0, 42", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x0"))
+        assert.is_false(myCpu.status.error)
+    end)
+
+    it("LI overwrites existing register value", function()
+        local code = { "LI x10, 100", "LI x10, 7", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(7, myCpu:get_register("x10"))
+    end)
+
+    it("LI with invalid immediate sets error", function()
+        local myCpu = cpu.new({ "LI x1, abc" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("LI with wrong arg count sets error", function()
+        local myCpu = cpu.new({ "LI x1, 1, 2" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("LI with invalid register sets error", function()
+        local myCpu = cpu.new({ "LI x99, 1" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── Case-insensitive instructions ─────────────────────────────────────────
+
+    it("lower-case instruction is accepted", function()
+        local code = { "li x10, 42", "hlt" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(42, myCpu:get_register("x10"))
+        assert.is_false(myCpu.status.error)
+    end)
+
+    it("mixed-case instruction is accepted", function()
+        local code = { "Addi x10, x0, 7", "Hlt" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(7, myCpu:get_register("x10"))
+        assert.is_false(myCpu.status.error)
+    end)
+
+    it("lower-case branch instruction works correctly", function()
+        local code = {
+            "li   x10, 0",
+            "loop:",
+            "    addi x10, x10, 1",
+            "    bnei x10, 5, loop",
+            "    hlt",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(5, myCpu:get_register("x10"))
+        assert.is_false(myCpu.status.error)
+    end)
+
+    it("signal names and register names remain case-sensitive", function()
+        -- Register names are always lower-case (x0, o0 etc.) — this just
+        -- confirms that uppercasing the mnemonic doesn't break them
+        local code = { "LI x10, 99", "WSIG o0, signal-A, x10", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        local reg = myCpu:get_register("o0")
+        assert.are.equal("signal-A", reg.name)
+        assert.are.equal(99, reg.count)
+    end)
+
     it("can ADD two registers", function()
         local code = {
             "ADDI x10, x0, 37",

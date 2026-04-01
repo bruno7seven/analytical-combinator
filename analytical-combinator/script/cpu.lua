@@ -113,6 +113,11 @@ function module:step()
         table.insert(args, arg)
     end
     local instruction = table.remove(args, 1)
+    -- Accept lower-case or mixed-case mnemonics; signal names and registers
+    -- are left unchanged because they are case-sensitive in Factorio.
+    if instruction ~= nil then
+        instruction = instruction:upper()
+    end
 
     if instruction == "HLT" then
         self.status.is_halted = true
@@ -137,6 +142,32 @@ function module:step()
                 return
             end
             self.registers[args[1]] = rs + imm
+        end
+    elseif instruction == "LI" then
+        -- Load immediate: LI rd, imm  =>  rd = imm
+        -- Syntactic sugar for ADDI rd, x0, imm. Cleaner when loading a constant
+        -- with no intent to add it to an existing register value.
+        if #args ~= 2 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[LI:" .. self.instruction_pointer .. "] Expected 2 arguments (rd, imm), got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            local imm = tonumber(args[2])
+            if imm == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[LI:" .. self.instruction_pointer .. "] Invalid immediate value: " .. args[2])
+                return
+            end
+            if self.registers[args[1]] == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[LI:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
+                return
+            end
+            self.registers[args[1]] = imm
         end
     elseif instruction == "ADD" then
         if #args ~= 3 then

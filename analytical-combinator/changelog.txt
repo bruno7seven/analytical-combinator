@@ -1,4 +1,26 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.11
+Date: 01. 04. 2026
+  Features:
+    - Added LI rd, imm — load immediate. Sets rd = imm directly. Syntactic sugar for
+      ADDI rd, x0, imm; cleaner when the intent is loading a constant rather than adding.
+      Accepts decimal, hex (0x prefix), and negative values. All standard error checks apply.
+    - Instructions are now case-insensitive. Mnemonics may be written in upper, lower, or
+      mixed case (ADDI, addi, Addi). The mnemonic is uppercased once during parsing via
+      instruction:upper() before any comparison. Register names (x0-x31, o0-o3) and signal
+      names remain case-sensitive as Factorio requires.
+  Documentation:
+    - Updated README.md and LICENSE.md to user-supplied versions. LICENSE now retains
+      Joakim Lönnegren's original MIT copyright alongside the Analytical Combinator
+      contributors' copyright. README includes Credits section acknowledging the original
+      mod and Claude's role in development.
+    - README: LI added to arithmetic table; new "Instruction case" section documents
+      case-insensitive parsing.
+    - 12 new tests (132 total): LI basic use, hex/negative immediates, x0 suppression,
+      overwrite, error cases; case-insensitive mnemonic tests including a lower-case
+      loop with BNEI; signal/register case-sensitivity confirmation.
+---------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
 Version: 0.8.10
 Date: 29. 03. 2026
   Bugfixes:

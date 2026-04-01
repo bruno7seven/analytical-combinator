@@ -1,26 +1,33 @@
 # Analytical Combinator
 
-A [Factorio](https://www.factorio.com) mod adding a programmable circuit combinator
-controlled via a RISC-V inspired assembly language.
+A [Factorio](https://www.factorio.com) mod adding a programmable circuit combinator controlled via a RISC-V inspired assembly language.
 
-Inspired and derived from joalon's [Assembly Combinator](https://mods.factorio.com/mod/assembly-combinator), but heavily modified to include read signal capability.
+## Credits / Attribution
 
-All development was done by Anthropic's Claude AI.
+Portions of this project are derived from the [Assembly Combinator](https://mods.factorio.com/mod/assembly-combinator) by Joakim Lönnegren (joalon), and remain subject to the MIT License.
+
+For contributions made by the Analytical Combinator contributors, we do not require attribution and will not enforce the inclusion of our copyright notice in redistributions, although the MIT License text still applies to the project as a whole.
+
+Much credit for my changes goes to Anthropic's Claude AI.  In addition to doing all of the coding and documentation, Claude suggested the name "Analytical Combinator" because it has a 19th-century engineering feel that fits the game's aesthetic, and nods to Babbage's Analytical Engine.
 
 ## Usage
 
 Download it from the [mod portal](https://mods.factorio.com/mod/analytical-combinator).
 
-The analytical combinator is based on a **Decider Combinator** and supports both
-input (red and green wires) and output circuit network connections.
+The analytical combinator is more like a **Decider Combinator** in that it supports both input (red and green wires) and output circuit network connections.
 
 ## Instruction set
+
+The instruction set is "inspired" by the RISC-V assembly language, but I've chosen not to be constrained by a 32-bit processor architecture or instruction length.  For example, the immediate operand in the ADDI instruction isn't limited to 12 bits as on a real RISC processor.
+
+I've also added branch immediate instructions where a full 32-bit immediate value along with the jump location are in the instruction.  These aren't actual RISC-V instructions since they aren't implementable with the RISC-V instruction format.
 
 ### Arithmetic
 
 | Instruction | Syntax | Description |
 |-------------|--------|-------------|
 | `ADDI` | `rd, rs, imm` | `rd = rs + imm` — add immediate constant |
+| `LI`   | `rd, imm`     | `rd = imm` — load immediate (shorthand for `ADDI rd, x0, imm`) |
 | `ADD`  | `rd, rs, rt`  | `rd = rs + rt`  — add two registers |
 | `SUB`  | `rd, rs, rt`  | `rd = rs - rt`  — subtract register |
 | `MUL`  | `rd, rs, rt`  | `rd = rs * rt`  — multiply two registers |
@@ -109,6 +116,10 @@ use when treating the value as a signed integer).
 - `x0`–`x31`: general-purpose integer registers. `x0` is always 0 (writes ignored).
 - `o0`–`o3`: output signal registers, written by `WSIG`, emitted on the output network each tick.
 
+## Instruction case
+
+Mnemonics are case-insensitive — `ADDI`, `addi`, and `Addi` are all accepted. Register names (`x0`–`x31`, `o0`–`o3`) and signal names (`iron-plate`, `signal-A`, etc.) remain case-sensitive.
+
 ## Immediate value formats
 
 All instructions that take an immediate (`imm`) argument accept integers in
@@ -125,7 +136,7 @@ SHLI x11, x10, 0x4      # shift amount as hex (unusual but valid)
 Hex is especially useful with bitwise instructions:
 
 ```
-ADDI  x10, x0,  0xFF00FF  # load a bitmask
+ADDI  x10, x0,  0xFF00FF   # load a bitmask
 AND   x11, x12, x10        # apply the mask
 SRLI  x11, x11, 0x8        # extract middle byte
 ```
@@ -178,7 +189,7 @@ number, it is defined to restart the program from line 1.
 main:
     RSIGG x10, iron-plate
     JAL   x1, clamp_255          # x1 = return address; jump to clamp_255
-    WSIG  o0, iron-plate, x10   # resumes here after return
+    WSIG  o0, iron-plate, x10    # resumes here after return
     RSIGG x10, copper-plate
     JAL   x1, clamp_255          # reuse the same subroutine and same link register
     WSIG  o1, copper-plate, x10
@@ -186,11 +197,11 @@ main:
     JR    x0                     # restart from line 1 (same as JAL x0, main if main: is on line 1)
 
 clamp_255:                       # expects value in x10, returns clamped value in x10
-    SLTI  x6,  x10, 256         # x6 = 1 if value already in range
-    BNE   x6,  x0,  clamp_ret  # skip clamp if already in range
-    ADDI  x10, x0,  255         # clamp to 255
+    SLTI  x6,  x10, 256          # x6 = 1 if value already in range
+    BNE   x6,  x0,  clamp_ret    # skip clamp if already in range
+    ADDI  x10, x0,  255          # clamp to 255
 clamp_ret:
-    JR    x1                    # return to caller
+    JR    x1                     # return to caller
 ```
 
 ### Bit masking — extract low byte
