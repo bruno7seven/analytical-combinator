@@ -13,6 +13,15 @@ local _lshift  = _bitlib.lshift
 local _rshift  = _bitlib.rshift    -- logical (zero-fill)
 local _arshift = _bitlib.arshift   -- arithmetic (sign-extend)
 
+-- Check whether a signal name exists in any of Factorio's three prototype tables.
+-- Used at runtime to give a clean error for typos in signal names.
+-- Returns true if valid, false otherwise.
+local function valid_signal_name(name)
+    return prototypes.virtual_signal[name] ~= nil
+        or prototypes.item[name]           ~= nil
+        or prototypes.fluid[name]          ~= nil
+end
+
 function module.parse_labels(code)
     local label_pattern = "^%s*([%w_][%w_]*):.*$"
     local labels = {}
@@ -303,6 +312,12 @@ function module:step()
                     "[WSIG:" .. self.instruction_pointer .. "] Invalid source register: " .. args[3])
                 return
             end
+            if not valid_signal_name(args[2]) then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[WSIG:" .. self.instruction_pointer .. "] Unknown signal name: " .. args[2])
+                return
+            end
             self.registers[args[1]] = { name = args[2], count = count_reg }
         else
             self.status.error = true
@@ -410,6 +425,12 @@ function module:step()
                     "[RSIGR:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
                 return
             end
+            if not valid_signal_name(args[2]) then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[RSIGR:" .. self.instruction_pointer .. "] Unknown signal name: " .. args[2])
+                return
+            end
             self.registers[args[1]] = self.input_signals.red[args[2]] or 0
         end
     elseif instruction == "RSIGG" then
@@ -429,7 +450,41 @@ function module:step()
                     "[RSIGG:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
                 return
             end
+            if not valid_signal_name(args[2]) then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[RSIGG:" .. self.instruction_pointer .. "] Unknown signal name: " .. args[2])
+                return
+            end
             self.registers[args[1]] = self.input_signals.green[args[2]] or 0
+        end
+    elseif instruction == "RSIG" then
+        -- Read signal from both wires: RSIG rd, signal-name
+        -- Sets rd to the sum of the named signal on the red AND green input wires.
+        -- Equivalent to: RSIGR rd, signal / RSIGG tmp, signal / ADD rd, rd, tmp
+        -- A signal absent on one or both wires contributes 0 to the sum.
+        if #args ~= 2 then
+            self.status.error = true
+            table.insert(self.errors,
+                "[RSIG:" .. self.instruction_pointer .. "] Expected 2 arguments, got " .. #args)
+            return
+        end
+        if args[1] ~= "x0" then
+            if self.registers[args[1]] == nil then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[RSIG:" .. self.instruction_pointer .. "] Invalid destination register: " .. args[1])
+                return
+            end
+            if not valid_signal_name(args[2]) then
+                self.status.error = true
+                table.insert(self.errors,
+                    "[RSIG:" .. self.instruction_pointer .. "] Unknown signal name: " .. args[2])
+                return
+            end
+            local red_val   = self.input_signals.red[args[2]]   or 0
+            local green_val = self.input_signals.green[args[2]] or 0
+            self.registers[args[1]] = red_val + green_val
         end
     elseif instruction == "MUL" then
         if #args ~= 3 then

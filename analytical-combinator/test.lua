@@ -2,6 +2,32 @@ require("busted.runner")()
 
 local cpu = require("script.cpu")
 
+-- Mock the Factorio 'prototypes' global used by valid_signal_name() in cpu.lua.
+-- In the real game this is a read-only table of all registered prototypes.
+-- We provide a minimal stub covering the signal names used in tests.
+local known_signals = {
+    ["iron-plate"]    = true,
+    ["copper-plate"]  = true,
+    ["steel-plate"]   = true,
+    ["iron-ore"]      = true,
+    ["signal-A"]      = true,
+    ["signal-B"]      = true,
+    ["signal-check"]  = true,
+    ["signal-clock"]  = true,
+    ["signal-red"]    = true,
+    ["signal-star"]   = true,
+    ["signal-S"]      = true,
+    ["crude-oil"]     = true,   -- fluid, for WSIG fluid test
+}
+local signal_proxy = setmetatable({}, {
+    __index = function(_, name) return known_signals[name] and {} or nil end
+})
+prototypes = {
+    virtual_signal = signal_proxy,
+    item           = signal_proxy,
+    fluid          = signal_proxy,
+}
+
 describe("CPU tests", function()
     it("can advance the instruction pointer", function()
         local code = {
@@ -785,6 +811,96 @@ describe("CPU tests", function()
         assert.has_no.errors(function() myCpu:step() end)
         assert.is_true(myCpu.status.error)
         assert.are.equal(1, #myCpu:get_errors())
+    end)
+
+    -- ── RSIG (read both wires, sum) ──────────────────────────────────────────
+
+    it("RSIG sums red and green wire values for the same signal", function()
+        local code = { "RSIG x10, iron-plate", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:set_input_signals(
+            { ["iron-plate"] = 300 },
+            { ["iron-plate"] = 150 }
+        )
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(450, myCpu:get_register("x10"))
+    end)
+
+    it("RSIG returns red value when only red wire has the signal", function()
+        local code = { "RSIG x10, iron-plate", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:set_input_signals({ ["iron-plate"] = 200 }, {})
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(200, myCpu:get_register("x10"))
+    end)
+
+    it("RSIG returns 0 when signal absent on both wires", function()
+        local code = { "RSIG x10, iron-plate", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:set_input_signals({}, {})
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x10"))
+    end)
+
+    it("RSIG write to x0 silently ignored", function()
+        local code = { "RSIG x0, iron-plate", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:set_input_signals({ ["iron-plate"] = 99 }, {})
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x0"))
+        assert.is_false(myCpu.status.error)
+    end)
+
+    it("RSIG with unknown signal name sets error", function()
+        local myCpu = cpu.new({ "RSIG x10, not-a-real-signal" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+        assert.is_true(#myCpu:get_errors() > 0)
+    end)
+
+    it("RSIG with invalid register sets error", function()
+        local myCpu = cpu.new({ "RSIG x99, iron-plate" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("RSIG with wrong arg count sets error", function()
+        local myCpu = cpu.new({ "RSIG x10" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── Signal name validation ────────────────────────────────────────────────
+
+    it("RSIGR with unknown signal name sets error", function()
+        local myCpu = cpu.new({ "RSIGR x10, not-a-real-signal" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("Unknown signal") ~= nil)
+    end)
+
+    it("RSIGG with unknown signal name sets error", function()
+        local myCpu = cpu.new({ "RSIGG x10, not-a-real-signal" })
+        myCpu:step()
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("WSIG with unknown signal name sets error", function()
+        local myCpu = cpu.new({ "LI x10, 1", "WSIG o0, not-a-real-signal, x10" })
+        local myCpu2 = cpu.new({ "LI x10, 1", "WSIG o0, not-a-real-signal, x10" })
+        myCpu2:step()  -- LI
+        myCpu2:step()  -- WSIG
+        assert.is_true(myCpu2.status.error)
+    end)
+
+    it("RSIGR with known signal name does not error when signal is absent from wire", function()
+        -- Absent signal on wire = 0, not an error
+        local code = { "RSIGR x10, iron-plate", "HLT" }
+        local myCpu = cpu.new(code)
+        myCpu:set_input_signals({}, {})   -- iron-plate not present
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(0, myCpu:get_register("x10"))
+        assert.is_false(myCpu.status.error)
     end)
 
     -- ── MUL ──────────────────────────────────────────────────────────────────

@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.14
+Date: 01. 04. 2026
+  Features:
+    - Added RSIG rd, signal — reads the named signal from BOTH the red and green input
+      wires and stores the sum in rd. Equivalent to RSIGR/RSIGG followed by ADD, but in
+      a single instruction. A signal absent on one or both wires contributes 0 to the sum.
+      RSIGR and RSIGG are retained for cases where per-wire distinction matters.
+    - Signal name validation: RSIG, RSIGR, RSIGG, and WSIG now validate the signal name
+      against Factorio's prototype tables (virtual_signal, item, fluid) at runtime.
+      An unrecognised name produces a descriptive error rather than silently reading 0
+      or emitting a signal that Factorio would reject. A valid signal name that is simply
+      absent on the wire at that moment still correctly returns 0 without error.
+    - Added prototypes mock to test.lua so signal-name validation tests run under Busted
+      without a live Factorio instance. Known signal names used in tests are registered
+      in the mock; unknown names correctly trigger error paths.
+    - 11 new tests (143 total).
+---------------------------------------------------------------------------------------------------
 Version: 0.8.12
 Date: 01. 04. 2026
   Bugfixes:

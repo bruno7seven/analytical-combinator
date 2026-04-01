@@ -98,10 +98,13 @@ use when treating the value as a signed integer).
 
 | Instruction | Syntax | Description |
 |-------------|--------|-------------|
+| `RSIG`  | `rd, signal` | Read named signal from **both** wires and store the sum in rd |
 | `RSIGR` | `rd, signal` | Read named signal from the **red** input wire into rd (0 if absent) |
 | `RSIGG` | `rd, signal` | Read named signal from the **green** input wire into rd (0 if absent) |
 | `CNTSR` | `rd`         | Set rd to the count of distinct signals on the **red** input wire |
 | `CNTSG` | `rd`         | Set rd to the count of distinct signals on the **green** input wire |
+
+Signal names are validated against Factorio's prototype tables at runtime. An unknown signal name produces a runtime error rather than silently returning 0.
 
 ### Control
 
