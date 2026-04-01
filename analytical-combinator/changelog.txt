@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.17
+Date: 01. 04. 2026
+  Bugfixes:
+    - Added regression test for the 0.8.16 off-by-one fix. The test loads a program
+      containing RSIGR, RSIGG, RSIG, and WSIG with valid signal names and asserts
+      that no error is set at load time. This would have caught the 0.8.15 bug
+      (tokens[2] = register name being validated as signal name) immediately.
+      145 tests total.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.16
 Date: 01. 04. 2026
   Bugfixes:

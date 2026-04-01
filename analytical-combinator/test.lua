@@ -898,6 +898,20 @@ describe("CPU tests", function()
         assert.is_true(myCpu:get_errors()[1]:find("Unknown signal") ~= nil)
     end)
 
+    it("REGRESSION: valid signal instruction does not error at load time (off-by-one guard)", function()
+        -- validate_signals() must index tokens[3] for the signal name, not tokens[2].
+        -- If tokens[2] (the register name) is validated instead, this will error.
+        local myCpu = cpu.new({
+            "RSIGR x10, iron-plate",
+            "RSIGG x11, copper-plate",
+            "RSIG  x12, steel-plate",
+            "WSIG  o0, signal-A, x10",
+            "HLT",
+        })
+        assert.is_false(myCpu.status.error)
+        assert.are.equal(0, #myCpu:get_errors())
+    end)
+
     it("RSIGR with known signal name does not error when signal is absent from wire", function()
         -- Absent signal on wire = 0, not an error
         local code = { "RSIGR x10, iron-plate", "HLT" }
