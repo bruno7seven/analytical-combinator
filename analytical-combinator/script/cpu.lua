@@ -43,9 +43,11 @@ function module.validate_signals(memory)
     -- Scan the program once at load time and return a list of error strings for
     -- any signal names that do not exist in Factorio's prototype tables.
     -- Called from new() and update_code() so per-tick handlers need no validation.
-    local signal_instructions = { RSIG=2, RSIGR=2, RSIGG=2, WSIG=2 }
-    -- WSIG od, signal, rs  -> signal is args[2] (index 2 after mnemonic removed)
-    -- RSIG/RSIGR/RSIGG rd, signal -> signal is args[2]
+    -- Position of the signal-name token within the full token list (mnemonic still at [1]).
+    -- In step(), the mnemonic is removed before indexing, so args[2] = tokens[3] here.
+    -- RSIG/RSIGR/RSIGG rd, signal  -> signal is tokens[3]
+    -- WSIG od, signal, rs          -> signal is tokens[3]
+    local signal_instructions = { RSIG=3, RSIGR=3, RSIGG=3, WSIG=3 }
     local errors = {}
     for line_num, line in ipairs(memory) do
         -- Strip label, comments, and whitespace the same way step() does

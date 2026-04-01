@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.16
+Date: 01. 04. 2026
+  Bugfixes:
+    - Fixed validate_signals() indexing the signal-name token at position 2 instead of 3.
+      The mnemonic is still present at tokens[1] in the validator, so the signal name is
+      at tokens[3] (e.g. RSIG x6, signal-name -> tokens = {RSIG, x6, signal-name}).
+      In step() the mnemonic is removed via table.remove() before indexing, so args[2]
+      correctly refers to the signal. The mismatch caused the register name (e.g. x6)
+      to be validated as a signal name, always failing for any RSIG/RSIGR/RSIGG/WSIG
+      instruction. Signal instructions in the position table corrected from 2 to 3.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.15
 Date: 01. 04. 2026
   Optimizations:
