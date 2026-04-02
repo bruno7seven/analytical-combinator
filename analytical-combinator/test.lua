@@ -813,6 +813,89 @@ describe("CPU tests", function()
         assert.are.equal(1, #myCpu:get_errors())
     end)
 
+    -- ── Load-time validation (validate_program) ─────────────────────────────────
+
+    it("unknown instruction errors at load time", function()
+        local myCpu = cpu.new({ "ADDI x10, x0, 1", "FOOBAR x1, x2", "HLT" })
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("Unknown instruction") ~= nil)
+    end)
+
+    it("wrong argument count errors at load time", function()
+        local myCpu = cpu.new({ "ADDI x10, x0" })  -- missing third arg
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("Expected 3") ~= nil)
+    end)
+
+    it("invalid destination register errors at load time", function()
+        local myCpu = cpu.new({ "ADDI x99, x0, 1" })
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("x0-x31") ~= nil)
+    end)
+
+    it("invalid source register errors at load time", function()
+        local myCpu = cpu.new({ "ADD x1, x99, x0" })
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("invalid immediate errors at load time", function()
+        local myCpu = cpu.new({ "ADDI x1, x0, abc" })
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("integer immediate") ~= nil)
+    end)
+
+    it("undefined branch label errors at load time", function()
+        local myCpu = cpu.new({ "BEQ x0, x0, nowhere" })
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("undefined label") ~= nil)
+    end)
+
+    it("undefined JAL label errors at load time", function()
+        local myCpu = cpu.new({ "JAL x1, nowhere" })
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("invalid WSIG output register errors at load time", function()
+        local myCpu = cpu.new({ "LI x1, 1", "WSIG x0, signal-A, x1" })  -- x0 not an output reg
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("o0-o3") ~= nil)
+    end)
+
+    it("invalid WAIT argument errors at load time", function()
+        local myCpu = cpu.new({ "WAIT abc" })
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("hex immediate passes validation", function()
+        local myCpu = cpu.new({ "LI x10, 0xFF", "HLT" })
+        assert.is_false(myCpu.status.error)
+    end)
+
+    it("valid program with all major instruction types does not error at load time", function()
+        local code = {
+            "main:",
+            "    LI    x10, 0",
+            "    RSIG  x11, iron-plate",
+            "    WSIG  o0, signal-A, x10",
+            "    ADDI  x10, x10, 1",
+            "    BLTI  x10, 10, main",
+            "    HLT",
+        }
+        local myCpu = cpu.new(code)
+        assert.is_false(myCpu.status.error)
+        assert.are.equal(0, #myCpu:get_errors())
+    end)
+
+    it("multiple errors in one program are all reported", function()
+        local myCpu = cpu.new({
+            "ADDI x99, x0, 1",   -- bad dest register
+            "ADDI x1, x0, abc",  -- bad immediate
+            "HLT",
+        })
+        assert.is_true(myCpu.status.error)
+        assert.are.equal(2, #myCpu:get_errors())
+    end)
+
     -- ── RSIG (read both wires, sum) ──────────────────────────────────────────
 
     it("RSIG sums red and green wire values for the same signal", function()
@@ -889,7 +972,7 @@ describe("CPU tests", function()
         assert.is_true(#myCpu:get_errors() > 0)
     end)
 
-    it("update_code re-validates signal names", function()
+    it("update_code re-validates entire program including signal names", function()
         -- Start with valid code, then update to invalid signal name
         local myCpu = cpu.new({ "RSIGR x10, iron-plate", "HLT" })
         assert.is_false(myCpu.status.error)

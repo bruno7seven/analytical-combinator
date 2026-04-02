@@ -1,4 +1,25 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.18
+Date: 02. 04. 2026
+  Optimizations:
+    - Complete refactor of load-time validation. validate_program() now checks every
+      instruction in the program once when code is loaded or saved, covering: unknown
+      mnemonics, wrong argument counts, invalid registers (x0-x31 and o0-o3), invalid
+      immediate values, unknown signal names, and undefined branch/JAL labels.
+    - step() now contains zero validation logic (except divide-by-zero which is only
+      knowable at runtime). Every instruction handler is pure computation.
+    - All instructions are described in a declarative INSTR table with argument type
+      descriptors (rd, rs, rt, od, imm, sig, lbl, reg_or_imm). Adding a new instruction
+      only requires adding a table entry and a handler in step().
+    - Refactored tokenize() into a shared local function used by both validate_program()
+      and step(), eliminating the duplicated strip-and-split logic.
+    - cpu.lua reduced from 1261 lines to 593 lines. Error-setting sites in step()
+      reduced from 116 to 7 (divide-by-zero x4, JR range check, nil IP guard,
+      unknown instruction fallback).
+    - 13 new tests covering load-time detection of unknown instructions, wrong arg
+      counts, bad registers, bad immediates, undefined labels, bad WSIG output
+      register, bad WAIT argument, multiple errors in one program. 157 tests total.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.17
 Date: 01. 04. 2026
   Bugfixes:
