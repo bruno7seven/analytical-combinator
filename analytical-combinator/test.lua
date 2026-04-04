@@ -17,7 +17,8 @@ local known_signals = {
     ["signal-red"]    = true,
     ["signal-star"]   = true,
     ["signal-S"]      = true,
-    ["crude-oil"]     = true,   -- fluid, for WSIG fluid test
+    ["crude-oil"]          = true,   -- fluid, for WSIG fluid test
+    ["signal-number-sign"] = true,   -- used in supply monitor example
 }
 local signal_proxy = setmetatable({}, {
     __index = function(_, name) return known_signals[name] and {} or nil end
@@ -951,6 +952,62 @@ describe("CPU tests", function()
         local myCpu = cpu.new({ "RSIG x10" })
         myCpu:step()
         assert.is_true(myCpu.status.error)
+    end)
+
+    -- ── WSIGI (write signal immediate) ──────────────────────────────────────────
+
+    it("WSIGI writes a constant signal value to an output register", function()
+        local code = { "WSIGI o0, signal-A, 42", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        local reg = myCpu:get_register("o0")
+        assert.are.equal("signal-A", reg.name)
+        assert.are.equal(42, reg.count)
+    end)
+
+    it("WSIGI accepts hex immediate", function()
+        local code = { "WSIGI o1, signal-A, 0xFF", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        local reg = myCpu:get_register("o1")
+        assert.are.equal(255, reg.count)
+    end)
+
+    it("WSIGI accepts negative immediate", function()
+        local code = { "WSIGI o0, signal-A, -1", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        local reg = myCpu:get_register("o0")
+        assert.are.equal(-1, reg.count)
+    end)
+
+    it("WSIGI with invalid output register errors at load time", function()
+        local myCpu = cpu.new({ "WSIGI x0, signal-A, 1" })
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("o0-o3") ~= nil)
+    end)
+
+    it("WSIGI with unknown signal name errors at load time", function()
+        local myCpu = cpu.new({ "WSIGI o0, not-a-signal, 1" })
+        assert.is_true(myCpu.status.error)
+    end)
+
+    it("WSIGI with non-numeric immediate errors at load time", function()
+        local myCpu = cpu.new({ "WSIGI o0, signal-A, abc" })
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("integer immediate") ~= nil)
+    end)
+
+    it("WSIGI does not clobber other output registers", function()
+        local code = {
+            "WSIGI o0, signal-A, 10",
+            "WSIGI o1, signal-B, 20",
+            "HLT",
+        }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:step() end
+        assert.are.equal(10, myCpu:get_register("o0").count)
+        assert.are.equal(20, myCpu:get_register("o1").count)
     end)
 
     -- ── Signal name validation ────────────────────────────────────────────────

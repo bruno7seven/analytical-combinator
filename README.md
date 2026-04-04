@@ -55,10 +55,7 @@ I've also added branch immediate instructions where a full 32-bit immediate valu
 
 ### Shifts
 
-Shift instructions follow the RISC-V naming convention. Left shifts are always
-logical (zero-fill). Right shifts come in two flavours — logical (zero-fill from
-the left, use when treating the value as unsigned) and arithmetic (sign-extend,
-use when treating the value as a signed integer).
+Shift instructions follow the RISC-V naming convention. Left shifts are always logical (zero-fill). Right shifts come in two flavours — logical (zero-fill from the left, use when treating the value as unsigned) and arithmetic (sign-extend, use when treating the value as a signed integer).
 
 | Instruction | Syntax | Description |
 |---|---|---|
@@ -92,7 +89,8 @@ use when treating the value as a signed integer).
 
 | Instruction | Syntax | Description |
 |-------------|--------|-------------|
-| `WSIG` | `od, signal, rs` | Write signal to output channel od (o0–o3) with count from rs |
+| `WSIG`  | `od, signal, rs`  | Write signal to output channel od (o0–o3) with count from rs |
+| `WSIGI` | `od, signal, imm` | Write signal to output channel od (o0–o3) with a constant count |
 
 ### Circuit network input
 
@@ -104,7 +102,7 @@ use when treating the value as a signed integer).
 | `CNTSR` | `rd`         | Set rd to the count of distinct signals on the **red** input wire |
 | `CNTSG` | `rd`         | Set rd to the count of distinct signals on the **green** input wire |
 
-Signal names are validated against Factorio's prototype tables at runtime. An unknown signal name produces a runtime error rather than silently returning 0.
+Signal names are validated against Factorio's prototype tables when the program is saved. An unknown signal name is flagged immediately rather than silently returning 0 at runtime.
 
 ### Control
 
@@ -116,7 +114,7 @@ Signal names are validated against Factorio's prototype tables at runtime. An un
 
 ### Registers
 
-- `x0`–`x31`: general-purpose integer registers. `x0` is always 0 (writes ignored).
+- `x0`–`x31`: general-purpose integer registers. `x0` is always 0 (writes ignored).  The alternate ABI register names are **not** supported - sorry.
 - `o0`–`o3`: output signal registers, written by `WSIG`, emitted on the output network each tick.
 
 ## Instruction case
@@ -125,9 +123,7 @@ Mnemonics are case-insensitive — `ADDI`, `addi`, and `Addi` are all accepted. 
 
 ## Immediate value formats
 
-All instructions that take an immediate (`imm`) argument accept integers in
-**decimal**, **hexadecimal** (`0x` prefix), or **negative decimal**. Octal
-(`0`-prefix) is technically accepted by the Lua parser but best avoided.
+All instructions that take an immediate (`imm`) argument accept integers in **decimal**, **hexadecimal** (`0x` prefix), or **negative decimal**. Octal (`0`-prefix) is technically accepted by the Lua parser but best avoided.
 
 ```
 ADDI x10, x0, 255       # decimal
@@ -146,6 +142,8 @@ SRLI  x11, x11, 0x8        # extract middle byte
 
 ## Example programs
 
+The following examples are simply meant to illustrate what is possible with Analytical Combinators.  I realize some of these use-cases may be easy to implement with items such as Decider Combinators.  
+
 ### Simple counter (output only)
 
 ```
@@ -162,10 +160,7 @@ loop:
 
 ### Threshold gate (read input, control output)
 
-Reads an iron-ore count from the green wire. Once it exceeds 500,
-outputs signal-A = 1 on the output connector and halts. The signal
-appears on whichever wire(s) — red, green, or both — are physically
-connected to the output side of the combinator.
+Reads an iron-ore count from the green wire. Once it exceeds 500, outputs signal-A = 1 on the output connector and halts. The signal appears on whichever wire(s) — red, green, or both — are physically connected to the output side of the combinator.
 
 ```
 poll:
@@ -179,14 +174,9 @@ poll:
 
 ### Subroutine call with JAL / JR
 
-`JAL rd, label` saves the address of the next instruction into `rd`, then jumps
-to `label`. `JR rd` jumps to the address in `rd`, returning execution to the
-instruction after the call site. Use a different link register for each call
-frame. Recursive calls are not supported (no stack), but sequential calls to
-shared subroutines work cleanly.
+`JAL rd, label` saves the address of the next instruction into `rd`, then jumps to `label`. `JR rd` jumps to the address in `rd`, returning execution to the instruction after the call site. Use a different link register for each call frame. Recursive calls are not supported (no stack), but sequential calls to shared subroutines work cleanly.
 
-`JR x0` is a special case: since x0 is always 0 and 0 is not a valid line
-number, it is defined to restart the program from line 1.
+`JR x0` is a special case: since x0 is always 0 and 0 is not a valid line number, it is defined to restart the program from line 1.
 
 ```
 main:
@@ -209,8 +199,7 @@ clamp_ret:
 
 ### Bit masking — extract low byte
 
-Factorio signals are 32-bit integers. Use AND to isolate the lower 8 bits,
-useful if you are packing multiple small values into a single signal channel.
+Factorio signals are 32-bit integers. Use AND to isolate the lower 8 bits, useful if you are packing multiple small values into a single signal channel.
 
 ```
     RSIGR x10, signal-A         # Read packed value from red wire
@@ -224,8 +213,7 @@ useful if you are packing multiple small values into a single signal channel.
 
 ### Signal presence detection with CNTSG
 
-Fire signal-A when *anything* appears on the green wire (useful as a
-"something arrived" trigger without caring what the signal is).
+Fire signal-A when *anything* appears on the green wire (useful as a "something arrived" trigger without caring what the signal is).
 
 ```
 poll:
@@ -241,9 +229,7 @@ poll:
 
 ### Red/green signal sum
 
-Reads a signal from both wires each tick and outputs their sum. Useful
-when two separate parts of a factory each report a count on different
-wire colours and you want a combined total.
+Reads a signal from both wires each tick and outputs their sum. This is one of those cases where Decider Combinators do the job nicely.  Note that this example does individual reads from each circuit.  The next example uses the `RSIG` instruction which sums the inputs from both circuits.
 
 ```
 loop:
@@ -261,12 +247,10 @@ Same idea, but halts and fires a signal once the combined total exceeds 500.
 
 ```
 loop:
-    RSIGR x10, iron-plate       # Read iron-plate from red wire
-    RSIGG x11, iron-plate       # Read iron-plate from green wire
-    ADD   x12, x10, x11         # x12 = red + green total
+    RSIG  x12, iron-plate       # Read iron-plate from both circuits
     SLTI  x6,  x12, 500         # x6 = 1 if total < 500
     BNE   x6,  x0,  loop        # Keep polling until threshold met
-    ADDI  x11, x0,  1
+    LI    x11, 1
     WSIG  o0,  signal-A, x11    # Emit signal-A = 1
     HLT
 ```

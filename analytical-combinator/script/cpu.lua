@@ -131,6 +131,7 @@ local INSTR = {
     RSIGR = { 2, { "rd",  "sig"        } },
     RSIGG = { 2, { "rd",  "sig"        } },
     WSIG  = { 3, { "od",  "sig", "rs"  } },
+    WSIGI = { 3, { "od",  "sig", "imm" } },
     CNTSR = { 1, { "rd"               } },
     CNTSG = { 1, { "rd"               } },
     WAIT  = { 1, { "reg_or_imm"       } },
@@ -433,6 +434,11 @@ function module:step()
 
     elseif instruction == "WSIG" then
         self.registers[args[1]] = { name = args[2], count = self.registers[args[3]] }
+
+    elseif instruction == "WSIGI" then
+        -- Write signal immediate: WSIGI od, signal, imm
+        -- Outputs the signal with a constant count, no register needed.
+        self.registers[args[1]] = { name = args[2], count = tonumber(args[3]) }
 
     elseif instruction == "JAL" then
         if args[1] ~= "x0" then
