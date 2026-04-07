@@ -24,50 +24,40 @@ end
 -- ── Register classification helpers ──────────────────────────────────────────
 
 local function is_gp_reg(name)
-    -- General-purpose register: x0–x31
     if type(name) ~= "string" then return false end
-    local n = name:match("^x(%d+)$")
-    if not n then return false end
-    n = tonumber(n)
+    local n = tonumber(name:match("^x(%d+)$"))
     return n ~= nil and n >= 0 and n <= 31
 end
 
 local function is_out_reg(name)
-    -- Output register: o0–o3
     if type(name) ~= "string" then return false end
-    local n = name:match("^o(%d+)$")
-    if not n then return false end
-    n = tonumber(n)
+    local n = tonumber(name:match("^o(%d+)$"))
     return n ~= nil and n >= 0 and n <= 3
 end
 
 -- ── Label parsing ─────────────────────────────────────────────────────────────
 
 function module.parse_labels(code)
-    local label_pattern = "^%s*([%w_][%w_]*):.*$"
     local labels = {}
     for i, line in ipairs(code) do
-        if line:match(label_pattern) then
-            local label_name = module.extract_label_name(line)
-            labels[label_name] = i
-        end
+        local label = line:match("^%s*([%w_][%w_]*):%s*")
+        if label then labels[label] = i end
     end
     return labels
 end
 
 function module.extract_label_name(line)
-    local label_name_pattern = "^%s*([%w_][%w_]*):.*$"
-    return line:match(label_name_pattern)
+    return line:match("^%s*([%w_][%w_]*):.*$")
 end
 
--- ── Token extraction (shared by validator and step()) ────────────────────────
+-- ── Tokenizer ─────────────────────────────────────────────────────────────────
 
 local function tokenize(line)
     local stripped = line:gsub("^[^:]*:%s*", "")
                          :gsub("#.*", "")
                          :gsub("%s+$", "")
     local tokens = {}
-    for tok in string.gmatch(stripped, "[^%s,]+") do
+    for tok in stripped:gmatch("[^%s,]+") do
         table.insert(tokens, tok)
     end
     return tokens
@@ -75,58 +65,56 @@ end
 
 -- ── Load-time validator ───────────────────────────────────────────────────────
 --
--- Checks every instruction once when code is loaded or saved. step() runs
--- with no validation, trusting all registers, immediates, signal names, and
--- labels were already verified here.
+-- Validates every instruction once at load time. step() runs with no validation.
+-- The only runtime check is divide-by-zero (divisor only known at runtime).
 --
 -- Argument descriptor types:
---   "rd"          destination general-purpose register (x0-x31)
---   "rs" / "rt"   source general-purpose register     (x0-x31)
---   "od"          output register                     (o0-o3)
---   "imm"         integer immediate (decimal or 0x hex)
---   "sig"         signal name validated against Factorio prototypes
---   "lbl"         label name that must exist in the program
---   "reg_or_imm"  either a gp register or an integer immediate (WAIT)
+--   "rd" / "rs" / "rt"  general-purpose register (x0-x31)
+--   "od"                 output register (o0-o3)
+--   "imm"                integer immediate (decimal or 0x hex)
+--   "sig"                signal name validated against Factorio prototypes
+--   "lbl"                label that must exist in the program
+--   "reg_or_imm"         either a gp register or an integer (WAIT)
 
 local INSTR = {
-    HLT  = { 0, {} },
-    NOP  = { 0, {} },
-    LI   = { 2, { "rd",  "imm"       } },
-    ADDI = { 3, { "rd",  "rs",  "imm" } },
-    ADD  = { 3, { "rd",  "rs",  "rt"  } },
-    SUB  = { 3, { "rd",  "rs",  "rt"  } },
-    MUL  = { 3, { "rd",  "rs",  "rt"  } },
-    MULI = { 3, { "rd",  "rs",  "imm" } },
-    DIV  = { 3, { "rd",  "rs",  "rt"  } },
-    DIVI = { 3, { "rd",  "rs",  "imm" } },
-    REM  = { 3, { "rd",  "rs",  "rt"  } },
-    REMI = { 3, { "rd",  "rs",  "imm" } },
-    SLT  = { 3, { "rd",  "rs",  "rt"  } },
-    SLTI = { 3, { "rd",  "rs",  "imm" } },
-    AND  = { 3, { "rd",  "rs",  "rt"  } },
-    OR   = { 3, { "rd",  "rs",  "rt"  } },
-    XOR  = { 3, { "rd",  "rs",  "rt"  } },
-    NOT  = { 2, { "rd",  "rs"         } },
-    SLL  = { 3, { "rd",  "rs",  "rt"  } },
-    SLLI = { 3, { "rd",  "rs",  "imm" } },
-    SRL  = { 3, { "rd",  "rs",  "rt"  } },
-    SRLI = { 3, { "rd",  "rs",  "imm" } },
-    SRA  = { 3, { "rd",  "rs",  "rt"  } },
-    SRAI = { 3, { "rd",  "rs",  "imm" } },
-    JAL  = { 2, { "rd",  "lbl"        } },
-    JR   = { 1, { "rs"               } },
-    BEQ  = { 3, { "rs",  "rt",  "lbl" } },
-    BNE  = { 3, { "rs",  "rt",  "lbl" } },
-    BLT  = { 3, { "rs",  "rt",  "lbl" } },
-    BLE  = { 3, { "rs",  "rt",  "lbl" } },
-    BGT  = { 3, { "rs",  "rt",  "lbl" } },
-    BGE  = { 3, { "rs",  "rt",  "lbl" } },
-    BEQI = { 3, { "rs",  "imm", "lbl" } },
-    BNEI = { 3, { "rs",  "imm", "lbl" } },
-    BLTI = { 3, { "rs",  "imm", "lbl" } },
-    BLEI = { 3, { "rs",  "imm", "lbl" } },
-    BGTI = { 3, { "rs",  "imm", "lbl" } },
-    BGEI = { 3, { "rs",  "imm", "lbl" } },
+    HLT   = { 0, {} },
+    NOP   = { 0, {} },
+    LI    = { 2, { "rd",  "imm"       } },
+    ADDI  = { 3, { "rd",  "rs",  "imm" } },
+    ADD   = { 3, { "rd",  "rs",  "rt"  } },
+    SUB   = { 3, { "rd",  "rs",  "rt"  } },
+    MUL   = { 3, { "rd",  "rs",  "rt"  } },
+    MULI  = { 3, { "rd",  "rs",  "imm" } },
+    DIV   = { 3, { "rd",  "rs",  "rt"  } },
+    DIVI  = { 3, { "rd",  "rs",  "imm" } },
+    REM   = { 3, { "rd",  "rs",  "rt"  } },
+    REMI  = { 3, { "rd",  "rs",  "imm" } },
+    SLT   = { 3, { "rd",  "rs",  "rt"  } },
+    SLTI  = { 3, { "rd",  "rs",  "imm" } },
+    AND   = { 3, { "rd",  "rs",  "rt"  } },
+    OR    = { 3, { "rd",  "rs",  "rt"  } },
+    XOR   = { 3, { "rd",  "rs",  "rt"  } },
+    NOT   = { 2, { "rd",  "rs"         } },
+    SLL   = { 3, { "rd",  "rs",  "rt"  } },
+    SLLI  = { 3, { "rd",  "rs",  "imm" } },
+    SRL   = { 3, { "rd",  "rs",  "rt"  } },
+    SRLI  = { 3, { "rd",  "rs",  "imm" } },
+    SRA   = { 3, { "rd",  "rs",  "rt"  } },
+    SRAI  = { 3, { "rd",  "rs",  "imm" } },
+    JAL   = { 2, { "rd",  "lbl"        } },
+    JR    = { 1, { "rs"               } },
+    BEQ   = { 3, { "rs",  "rt",  "lbl" } },
+    BNE   = { 3, { "rs",  "rt",  "lbl" } },
+    BLT   = { 3, { "rs",  "rt",  "lbl" } },
+    BLE   = { 3, { "rs",  "rt",  "lbl" } },
+    BGT   = { 3, { "rs",  "rt",  "lbl" } },
+    BGE   = { 3, { "rs",  "rt",  "lbl" } },
+    BEQI  = { 3, { "rs",  "imm", "lbl" } },
+    BNEI  = { 3, { "rs",  "imm", "lbl" } },
+    BLTI  = { 3, { "rs",  "imm", "lbl" } },
+    BLEI  = { 3, { "rs",  "imm", "lbl" } },
+    BGTI  = { 3, { "rs",  "imm", "lbl" } },
+    BGEI  = { 3, { "rs",  "imm", "lbl" } },
     RSIG  = { 2, { "rd",  "sig"        } },
     RSIGR = { 2, { "rd",  "sig"        } },
     RSIGG = { 2, { "rd",  "sig"        } },
@@ -207,15 +195,412 @@ function module.validate_program(memory)
     return errors
 end
 
+-- ── Pre-compilation ───────────────────────────────────────────────────────────
+--
+-- Converts the raw source line array into a "compiled" array of instruction
+-- records that step() can execute with no string operations at all.
+--
+-- Each compiled record is a table:
+--   { op = "ADDI", a1 = "x10", a2 = "x0", a3 = 255 }
+--
+-- Key optimisation: immediate arguments are resolved to numbers here, so
+-- tonumber() is never called inside step(). Label arguments are resolved to
+-- line numbers. WAIT's argument is resolved to either a register name string
+-- or a pre-converted integer. Empty/label-only lines become { op = "NOP" }.
+--
+-- This function is only called after validate_program() has confirmed the
+-- program is error-free, so it can assume all tokens are valid.
+
+local function compile(memory, labels)
+    local compiled = {}
+    for _, line in ipairs(memory) do
+        local tokens = tokenize(line)
+        if #tokens == 0 then
+            -- blank or label-only line
+            table.insert(compiled, { op = "NOP" })
+        else
+            local mnemonic = tokens[1]:upper()
+            local rec = { op = mnemonic }
+            -- Resolve each argument to its most efficient runtime form
+            local desc = INSTR[mnemonic]
+            if desc then
+                for i, arg_type in ipairs(desc[2]) do
+                    local raw = tokens[i + 1]
+                    if arg_type == "imm" then
+                        rec["a"..i] = tonumber(raw)      -- number
+                    elseif arg_type == "lbl" then
+                        rec["a"..i] = labels[raw]        -- line number (integer)
+                    elseif arg_type == "reg_or_imm" then
+                        -- WAIT: store number if immediate, string if register
+                        rec["a"..i] = tonumber(raw) or raw
+                    else
+                        rec["a"..i] = raw                -- register name or signal name (string)
+                    end
+                end
+            end
+            table.insert(compiled, rec)
+        end
+    end
+    return compiled
+end
+
+-- ── Dispatch table ────────────────────────────────────────────────────────────
+--
+-- Each entry is a function(cpu, rec) where rec is the compiled instruction
+-- record. Returns true if the instruction_pointer should NOT be advanced
+-- (i.e. the instruction handled IP itself, or halted/errored).
+-- Returns nil/false to advance normally.
+
+local DISPATCH = {}
+
+DISPATCH["HLT"] = function(cpu, _)
+    cpu.status.is_halted = true
+    return true
+end
+
+DISPATCH["NOP"] = function() end
+
+DISPATCH["LI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then cpu.registers[rec.a1] = rec.a2 end
+end
+
+DISPATCH["ADDI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = cpu.registers[rec.a2] + rec.a3
+    end
+end
+
+DISPATCH["ADD"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = cpu.registers[rec.a2] + cpu.registers[rec.a3]
+    end
+end
+
+DISPATCH["SUB"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = cpu.registers[rec.a2] - cpu.registers[rec.a3]
+    end
+end
+
+DISPATCH["MUL"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = cpu.registers[rec.a2] * cpu.registers[rec.a3]
+    end
+end
+
+DISPATCH["MULI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = cpu.registers[rec.a2] * rec.a3
+    end
+end
+
+DISPATCH["DIV"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        local rt = cpu.registers[rec.a3]
+        if rt == 0 then
+            cpu.status.error = true
+            table.insert(cpu.errors, "[DIV:" .. cpu.instruction_pointer .. "] Division by zero")
+            return true
+        end
+        cpu.registers[rec.a1] = math.floor(cpu.registers[rec.a2] / rt)
+    end
+end
+
+DISPATCH["DIVI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        if rec.a3 == 0 then
+            cpu.status.error = true
+            table.insert(cpu.errors, "[DIVI:" .. cpu.instruction_pointer .. "] Division by zero")
+            return true
+        end
+        cpu.registers[rec.a1] = math.floor(cpu.registers[rec.a2] / rec.a3)
+    end
+end
+
+DISPATCH["REM"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        local rt = cpu.registers[rec.a3]
+        if rt == 0 then
+            cpu.status.error = true
+            table.insert(cpu.errors, "[REM:" .. cpu.instruction_pointer .. "] Division by zero")
+            return true
+        end
+        cpu.registers[rec.a1] = math.fmod(cpu.registers[rec.a2], rt)
+    end
+end
+
+DISPATCH["REMI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        if rec.a3 == 0 then
+            cpu.status.error = true
+            table.insert(cpu.errors, "[REMI:" .. cpu.instruction_pointer .. "] Division by zero")
+            return true
+        end
+        cpu.registers[rec.a1] = math.fmod(cpu.registers[rec.a2], rec.a3)
+    end
+end
+
+DISPATCH["SLT"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = (cpu.registers[rec.a2] < cpu.registers[rec.a3]) and 1 or 0
+    end
+end
+
+DISPATCH["SLTI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = (cpu.registers[rec.a2] < rec.a3) and 1 or 0
+    end
+end
+
+DISPATCH["AND"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _band(cpu.registers[rec.a2], cpu.registers[rec.a3])
+    end
+end
+
+DISPATCH["OR"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _bor(cpu.registers[rec.a2], cpu.registers[rec.a3])
+    end
+end
+
+DISPATCH["XOR"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _bxor(cpu.registers[rec.a2], cpu.registers[rec.a3])
+    end
+end
+
+DISPATCH["NOT"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _bnot(cpu.registers[rec.a2])
+    end
+end
+
+DISPATCH["SLL"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _lshift(cpu.registers[rec.a2], cpu.registers[rec.a3])
+    end
+end
+
+DISPATCH["SLLI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _lshift(cpu.registers[rec.a2], rec.a3)
+    end
+end
+
+DISPATCH["SRL"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _rshift(cpu.registers[rec.a2], cpu.registers[rec.a3])
+    end
+end
+
+DISPATCH["SRLI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _rshift(cpu.registers[rec.a2], rec.a3)
+    end
+end
+
+DISPATCH["SRA"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _arshift(cpu.registers[rec.a2], cpu.registers[rec.a3])
+    end
+end
+
+DISPATCH["SRAI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _arshift(cpu.registers[rec.a2], rec.a3)
+    end
+end
+
+DISPATCH["WAIT"] = function(cpu, rec)
+    local a1 = rec.a1
+    if cpu.status.wait_cycles == nil then
+        local val = type(a1) == "number" and a1 or cpu.registers[a1]
+        cpu.status.wait_cycles = val - 1
+        return true   -- do not advance IP
+    elseif cpu.status.wait_cycles > 1 then
+        cpu.status.wait_cycles = cpu.status.wait_cycles - 1
+        return true
+    else
+        cpu.status.wait_cycles = nil
+        -- fall through; advance IP normally
+    end
+end
+
+DISPATCH["WSIG"] = function(cpu, rec)
+    cpu.registers[rec.a1] = { name = rec.a2, count = cpu.registers[rec.a3] }
+end
+
+DISPATCH["WSIGI"] = function(cpu, rec)
+    cpu.registers[rec.a1] = { name = rec.a2, count = rec.a3 }
+end
+
+DISPATCH["JAL"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = cpu.instruction_pointer + 1
+    end
+    cpu.instruction_pointer = rec.a2   -- already resolved to line number
+    cpu.status.jump_executed = true
+    return true
+end
+
+DISPATCH["JR"] = function(cpu, rec)
+    local rs = cpu.registers[rec.a1]
+    local target = (rs == 0) and 1 or rs
+    if target < 1 or target > #cpu.compiled then
+        cpu.status.error = true
+        table.insert(cpu.errors,
+            "[JR:" .. cpu.instruction_pointer .. "] Return address out of range: " .. target)
+        return true
+    end
+    cpu.instruction_pointer = target
+    cpu.status.jump_executed = true
+    return true
+end
+
+DISPATCH["BEQ"] = function(cpu, rec)
+    if cpu.registers[rec.a1] == cpu.registers[rec.a2] then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BNE"] = function(cpu, rec)
+    if cpu.registers[rec.a1] ~= cpu.registers[rec.a2] then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BLT"] = function(cpu, rec)
+    if cpu.registers[rec.a1] < cpu.registers[rec.a2] then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BLE"] = function(cpu, rec)
+    if cpu.registers[rec.a1] <= cpu.registers[rec.a2] then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BGT"] = function(cpu, rec)
+    if cpu.registers[rec.a1] > cpu.registers[rec.a2] then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BGE"] = function(cpu, rec)
+    if cpu.registers[rec.a1] >= cpu.registers[rec.a2] then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BEQI"] = function(cpu, rec)
+    if cpu.registers[rec.a1] == rec.a2 then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BNEI"] = function(cpu, rec)
+    if cpu.registers[rec.a1] ~= rec.a2 then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BLTI"] = function(cpu, rec)
+    if cpu.registers[rec.a1] < rec.a2 then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BLEI"] = function(cpu, rec)
+    if cpu.registers[rec.a1] <= rec.a2 then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BGTI"] = function(cpu, rec)
+    if cpu.registers[rec.a1] > rec.a2 then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["BGEI"] = function(cpu, rec)
+    if cpu.registers[rec.a1] >= rec.a2 then
+        cpu.instruction_pointer = rec.a3
+        cpu.status.jump_executed = true
+        return true
+    end
+end
+
+DISPATCH["RSIG"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = (cpu.input_signals.red[rec.a2]   or 0)
+                               + (cpu.input_signals.green[rec.a2] or 0)
+    end
+end
+
+DISPATCH["RSIGR"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = cpu.input_signals.red[rec.a2] or 0
+    end
+end
+
+DISPATCH["RSIGG"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = cpu.input_signals.green[rec.a2] or 0
+    end
+end
+
+DISPATCH["CNTSR"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        local count = 0
+        for _ in pairs(cpu.input_signals.red) do count = count + 1 end
+        cpu.registers[rec.a1] = count
+    end
+end
+
+DISPATCH["CNTSG"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        local count = 0
+        for _ in pairs(cpu.input_signals.green) do count = count + 1 end
+        cpu.registers[rec.a1] = count
+    end
+end
+
 -- ── CPU lifecycle ─────────────────────────────────────────────────────────────
 
-local function apply_validation(cpu_state, memory)
+local function apply_validation_and_compile(cpu_state, memory)
     local errs = module.validate_program(memory)
     for _, e in ipairs(errs) do
         table.insert(cpu_state.errors, e)
     end
     if #errs > 0 then
         cpu_state.status.error = true
+        cpu_state.compiled = {}
+    else
+        cpu_state.compiled = compile(memory, cpu_state.labels)
     end
 end
 
@@ -226,12 +611,13 @@ function module.new(code)
     for i = 0, 31 do cpuClass.registers["x" .. i] = 0 end
     for i = 0, 3  do cpuClass.registers["o" .. i] = { name = nil, count = 0 } end
     local memory = code or { "HLT" }
-    cpuClass.memory             = memory
+    cpuClass.memory              = memory
     cpuClass.instruction_pointer = 1
-    cpuClass.labels             = module.parse_labels(memory)
-    cpuClass.errors             = {}
-    cpuClass.input_signals      = { red = {}, green = {} }
-    apply_validation(cpuClass, memory)
+    cpuClass.labels              = module.parse_labels(memory)
+    cpuClass.errors              = {}
+    cpuClass.input_signals       = { red = {}, green = {} }
+    cpuClass.compiled            = {}
+    apply_validation_and_compile(cpuClass, memory)
     return cpuClass
 end
 
@@ -241,15 +627,16 @@ end
 
 function module:update_code(code)
     local memory = code or { "HLT" }
-    self.memory             = memory
-    self.labels             = module.parse_labels(memory)
+    self.memory              = memory
+    self.labels              = module.parse_labels(memory)
     self.instruction_pointer = 1
     for i = 0, 31 do self.registers["x" .. i] = 0 end
     for i = 0, 3  do self.registers["o" .. i] = { name = nil, count = 0 } end
     self.status        = { is_halted = false, jump_executed = false, error = false }
     self.errors        = {}
     self.input_signals = { red = {}, green = {} }
-    apply_validation(self, memory)
+    self.compiled      = {}
+    apply_validation_and_compile(self, memory)
 end
 
 function module:get_code()
@@ -257,329 +644,45 @@ function module:get_code()
 end
 
 -- ── Instruction execution ─────────────────────────────────────────────────────
--- validate_program() already confirmed every register, immediate, signal name,
--- and label. No validation here — pure computation only.
--- Exception: divide-by-zero (divisor only known at runtime).
+--
+-- Hot path. Per tick per combinator. Optimised for minimum work:
+--   1. Bounds check on instruction pointer
+--   2. One table index into compiled[]
+--   3. One table index into DISPATCH[]
+--   4. One function call
+--   5. IP advance (or not, if handler returned true)
+--
+-- No string operations, no tonumber(), no argument count checks.
 
 function module:step()
     if self.status.is_halted or self.status.error then return end
 
-    local fetch = self.memory[self.instruction_pointer]
-    if fetch == nil then
+    local ip = self.instruction_pointer
+    local rec = self.compiled[ip]
+    if rec == nil then
         self.status.error = true
-        table.insert(self.errors, "No instruction at line " .. self.instruction_pointer)
+        table.insert(self.errors, "No instruction at line " .. ip)
         return
     end
 
-    local tokens = tokenize(fetch)
-    if #tokens == 0 then self:advance_ip(); return end
-
-    local instruction = tokens[1]:upper()
-    local args = {}
-    for i = 2, #tokens do args[i-1] = tokens[i] end
-
-    if instruction == "HLT" then
-        self.status.is_halted = true; return
-
-    elseif instruction == "NOP" then  -- nothing
-
-    elseif instruction == "LI" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = tonumber(args[2])
-        end
-
-    elseif instruction == "ADDI" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = self.registers[args[2]] + tonumber(args[3])
-        end
-
-    elseif instruction == "ADD" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = self.registers[args[2]] + self.registers[args[3]]
-        end
-
-    elseif instruction == "SUB" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = self.registers[args[2]] - self.registers[args[3]]
-        end
-
-    elseif instruction == "MUL" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = self.registers[args[2]] * self.registers[args[3]]
-        end
-
-    elseif instruction == "MULI" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = self.registers[args[2]] * tonumber(args[3])
-        end
-
-    elseif instruction == "DIV" then
-        if args[1] ~= "x0" then
-            local rt = self.registers[args[3]]
-            if rt == 0 then
-                self.status.error = true
-                table.insert(self.errors, "[DIV:" .. self.instruction_pointer .. "] Division by zero")
-                return
-            end
-            self.registers[args[1]] = math.floor(self.registers[args[2]] / rt)
-        end
-
-    elseif instruction == "DIVI" then
-        if args[1] ~= "x0" then
-            local imm = tonumber(args[3])
-            if imm == 0 then
-                self.status.error = true
-                table.insert(self.errors, "[DIVI:" .. self.instruction_pointer .. "] Division by zero")
-                return
-            end
-            self.registers[args[1]] = math.floor(self.registers[args[2]] / imm)
-        end
-
-    elseif instruction == "REM" then
-        if args[1] ~= "x0" then
-            local rt = self.registers[args[3]]
-            if rt == 0 then
-                self.status.error = true
-                table.insert(self.errors, "[REM:" .. self.instruction_pointer .. "] Division by zero")
-                return
-            end
-            self.registers[args[1]] = math.fmod(self.registers[args[2]], rt)
-        end
-
-    elseif instruction == "REMI" then
-        if args[1] ~= "x0" then
-            local imm = tonumber(args[3])
-            if imm == 0 then
-                self.status.error = true
-                table.insert(self.errors, "[REMI:" .. self.instruction_pointer .. "] Division by zero")
-                return
-            end
-            self.registers[args[1]] = math.fmod(self.registers[args[2]], imm)
-        end
-
-    elseif instruction == "SLT" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = (self.registers[args[2]] < self.registers[args[3]]) and 1 or 0
-        end
-
-    elseif instruction == "SLTI" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = (self.registers[args[2]] < tonumber(args[3])) and 1 or 0
-        end
-
-    elseif instruction == "AND" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _band(self.registers[args[2]], self.registers[args[3]])
-        end
-
-    elseif instruction == "OR" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _bor(self.registers[args[2]], self.registers[args[3]])
-        end
-
-    elseif instruction == "XOR" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _bxor(self.registers[args[2]], self.registers[args[3]])
-        end
-
-    elseif instruction == "NOT" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _bnot(self.registers[args[2]])
-        end
-
-    elseif instruction == "SLL" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _lshift(self.registers[args[2]], self.registers[args[3]])
-        end
-
-    elseif instruction == "SLLI" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _lshift(self.registers[args[2]], tonumber(args[3]))
-        end
-
-    elseif instruction == "SRL" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _rshift(self.registers[args[2]], self.registers[args[3]])
-        end
-
-    elseif instruction == "SRLI" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _rshift(self.registers[args[2]], tonumber(args[3]))
-        end
-
-    elseif instruction == "SRA" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _arshift(self.registers[args[2]], self.registers[args[3]])
-        end
-
-    elseif instruction == "SRAI" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = _arshift(self.registers[args[2]], tonumber(args[3]))
-        end
-
-    elseif instruction == "WAIT" then
-        if #args > 0 then
-            if self.status.wait_cycles == nil then
-                local val = self.registers[args[1]]
-                if val == nil then val = tonumber(args[1]) end
-                self.status.wait_cycles = val - 1
-                return
-            elseif self.status.wait_cycles > 1 then
-                self.status.wait_cycles = self.status.wait_cycles - 1
-                return
-            else
-                self.status.wait_cycles = nil
-            end
-        end
-
-    elseif instruction == "WSIG" then
-        self.registers[args[1]] = { name = args[2], count = self.registers[args[3]] }
-
-    elseif instruction == "WSIGI" then
-        -- Write signal immediate: WSIGI od, signal, imm
-        -- Outputs the signal with a constant count, no register needed.
-        self.registers[args[1]] = { name = args[2], count = tonumber(args[3]) }
-
-    elseif instruction == "JAL" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = self.instruction_pointer + 1
-        end
-        self.instruction_pointer = self.labels[args[2]]
-        self.status.jump_executed = true
-
-    elseif instruction == "JR" then
-        local rs = self.registers[args[1]]
-        local target = (rs == 0) and 1 or rs
-        if target < 1 or target > #self.memory then
-            self.status.error = true
-            table.insert(self.errors,
-                "[JR:" .. self.instruction_pointer .. "] Return address out of range: " .. target)
-            return
-        end
-        self.instruction_pointer = target
-        self.status.jump_executed = true
-
-    elseif instruction == "BEQ" then
-        if self.registers[args[1]] == self.registers[args[2]] then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BNE" then
-        if self.registers[args[1]] ~= self.registers[args[2]] then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BLT" then
-        if self.registers[args[1]] < self.registers[args[2]] then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BLE" then
-        if self.registers[args[1]] <= self.registers[args[2]] then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BGT" then
-        if self.registers[args[1]] > self.registers[args[2]] then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BGE" then
-        if self.registers[args[1]] >= self.registers[args[2]] then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BEQI" then
-        if self.registers[args[1]] == tonumber(args[2]) then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BNEI" then
-        if self.registers[args[1]] ~= tonumber(args[2]) then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BLTI" then
-        if self.registers[args[1]] < tonumber(args[2]) then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BLEI" then
-        if self.registers[args[1]] <= tonumber(args[2]) then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BGTI" then
-        if self.registers[args[1]] > tonumber(args[2]) then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "BGEI" then
-        if self.registers[args[1]] >= tonumber(args[2]) then
-            self.instruction_pointer = self.labels[args[3]]
-            self.status.jump_executed = true
-        end
-
-    elseif instruction == "RSIG" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = (self.input_signals.red[args[2]]   or 0)
-                                    + (self.input_signals.green[args[2]] or 0)
-        end
-
-    elseif instruction == "RSIGR" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = self.input_signals.red[args[2]] or 0
-        end
-
-    elseif instruction == "RSIGG" then
-        if args[1] ~= "x0" then
-            self.registers[args[1]] = self.input_signals.green[args[2]] or 0
-        end
-
-    elseif instruction == "CNTSR" then
-        if args[1] ~= "x0" then
-            local count = 0
-            for _ in pairs(self.input_signals.red) do count = count + 1 end
-            self.registers[args[1]] = count
-        end
-
-    elseif instruction == "CNTSG" then
-        if args[1] ~= "x0" then
-            local count = 0
-            for _ in pairs(self.input_signals.green) do count = count + 1 end
-            self.registers[args[1]] = count
-        end
-
-    else
-        if instruction ~= nil then
-            self.status.error = true
-            table.insert(self.errors,
-                "Unexpected instruction on line " .. self.instruction_pointer .. ": " .. instruction)
-        end
+    local handler = DISPATCH[rec.op]
+    if handler == nil then
+        -- Should never happen after validation, but guard anyway
+        self.status.error = true
+        table.insert(self.errors, "No handler for instruction: " .. rec.op)
         return
     end
 
-    self:advance_ip()
-end
+    local handled_ip = handler(self, rec)
 
-function module:advance_ip()
-    if self.status.is_halted or self.status.error then return end
-    if self.status.jump_executed then
+    if not handled_ip then
+        -- Normal advance
+        self.instruction_pointer = (ip % #self.compiled) + 1
+    elseif self.status.jump_executed then
         self.status.jump_executed = false
-        return
     end
-    self.instruction_pointer = (self.instruction_pointer % #self.memory) + 1
+    -- If handled_ip is true but jump_executed is false, IP was already set
+    -- by the handler (e.g. WAIT keeping the same line) — do nothing.
 end
 
 function module:is_halted()

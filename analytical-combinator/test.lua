@@ -30,7 +30,7 @@ prototypes = {
 }
 
 describe("CPU tests", function()
-    it("can advance the instruction pointer", function()
+    it("instruction pointer advances correctly through a program", function()
         local code = {
             "ADDI x10, x0, 1",
             "ADDI x10, x10, 2",
@@ -39,13 +39,12 @@ describe("CPU tests", function()
         local myCpu = cpu.new(code)
 
         assert.is_true(myCpu.instruction_pointer == 1)
-        myCpu:advance_ip()
-        myCpu:advance_ip()
-        myCpu:advance_ip()
-        myCpu:advance_ip()
+        myCpu:step()  -- execute line 1, advance to line 2
         assert.is_true(myCpu.instruction_pointer == 2)
-        myCpu:advance_ip()
+        myCpu:step()  -- execute line 2, advance to line 3
         assert.is_true(myCpu.instruction_pointer == 3)
+        myCpu:step()  -- execute line 3, wrap back to line 1
+        assert.is_true(myCpu.instruction_pointer == 1)
     end)
 
     it("can halt", function()

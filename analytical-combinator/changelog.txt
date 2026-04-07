@@ -1,4 +1,19 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.20
+Date: 02. 04. 2026
+  Optimizations:
+    - Replaced the if-elseif instruction dispatcher in step() with a dispatch table
+      (Lua table keyed by mnemonic string, values are handler functions). The hot path
+      is now: one array index, one table lookup, one function call. Previously it was
+      up to 40 string comparisons in the worst case.
+    - Added a compile() pass that runs once after successful validation. Each source
+      line is pre-parsed into a record { op, a1, a2, a3 } with immediate values
+      converted to numbers, label references resolved to line numbers, and mnemonics
+      upper-cased. step() now performs zero string operations in the hot path.
+    - Removed advance_ip() as a separate method; IP advancement is now handled
+      inline in step() based on the handler's return value.
+    - The advance_ip test was rewritten to use step() directly.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.19
 Date: 02. 04. 2026
   Features:
