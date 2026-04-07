@@ -658,6 +658,9 @@ function module:step()
     if self.status.is_halted or self.status.error then return end
 
     local ip = self.instruction_pointer
+    if self.compiled == nil then
+        apply_validation_and_compile(self, self.memory)
+    end
     local rec = self.compiled[ip]
     if rec == nil then
         self.status.error = true
