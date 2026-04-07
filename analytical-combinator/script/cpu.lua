@@ -643,6 +643,16 @@ function module:get_code()
     return self.memory
 end
 
+-- Called by control.lua after metatable reattachment on load.
+-- Compiles the program if the compiled field is missing (saves created before
+-- 0.8.20 will not have it). Safe to call unconditionally — it is a no-op if
+-- compiled is already present and non-empty.
+function module:ensure_compiled()
+    if not self.compiled or #self.compiled == 0 then
+        apply_validation_and_compile(self, self.memory)
+    end
+end
+
 -- ── Instruction execution ─────────────────────────────────────────────────────
 --
 -- Hot path. Per tick per combinator. Optimised for minimum work:

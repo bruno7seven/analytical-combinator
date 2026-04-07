@@ -9,10 +9,12 @@ local function reattach_metatables()
     for _, data in pairs(storage.analytical_combinators) do
         if data.cpu then
             setmetatable(data.cpu, cpu)
-            -- Also ensure input_signals exists for saves predating 0.7.0
+            -- Backfill input_signals for saves predating 0.7.0
             if not data.cpu.input_signals then
                 data.cpu.input_signals = { red = {}, green = {} }
             end
+            -- Compile the program if this save predates 0.8.20 (no compiled field)
+            data.cpu:ensure_compiled()
         end
     end
 end

@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.21
+Date: 07. 04. 2026
+  Bugfixes:
+    - Fixed crash on load when a save contains combinators created before 0.8.20.
+      The compiled program array introduced in 0.8.20 is not present in older saves,
+      so step() crashed with 'attempt to index field compiled (a nil value)'.
+    - Added module:ensure_compiled() which re-compiles the program from self.memory
+      if the compiled field is absent or empty. Called from reattach_metatables() in
+      control.lua immediately after metatable re-attachment, covering both on_load
+      (normal resume) and on_configuration_changed (mod update). The compilation
+      cost is paid once at load time per affected combinator, not per tick.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.20
 Date: 02. 04. 2026
   Optimizations:
