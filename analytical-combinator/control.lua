@@ -1,20 +1,19 @@
 local cpu = require("script.cpu")
 
--- Re-attach the cpu module metatable to every stored CPU object.
--- Factorio serialises storage as plain tables — metatables are not saved.
--- This must be called in both on_load (normal resume) and on_configuration_changed
--- (mod update), otherwise all cpu methods are nil after a load.
+-- Reattach metatables to cpu objects after load (Factorio does not persist them).
+-- Also rebuilds the compiled program cache which lives outside storage entirely,
+-- so it is always absent after a load and must be reconstructed from self.memory.
+-- This function only reads storage (via data.cpu.memory); it never writes to it,
+-- making it safe to call from on_load.
 local function reattach_metatables()
     storage.analytical_combinators = storage.analytical_combinators or {}
-    for _, data in pairs(storage.analytical_combinators) do
+    for unit_number, data in pairs(storage.analytical_combinators) do
         if data.cpu then
             setmetatable(data.cpu, cpu)
-            -- Backfill input_signals for saves predating 0.7.0
-            if not data.cpu.input_signals then
-                data.cpu.input_signals = { red = {}, green = {} }
-            end
-            -- Compile the program if this save predates 0.8.20 (no compiled field)
-            data.cpu:ensure_compiled()
+            -- Ensure the cache key is set correctly (unit_number is the stable key)
+            data.cpu._cache_key = unit_number
+            -- Rebuild the compiled program from self.memory (no storage write)
+            data.cpu:rebuild_compiled()
         end
     end
 end

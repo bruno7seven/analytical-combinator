@@ -82,9 +82,12 @@ end
 
 local function register_entity(entity, code)
     if entity.name == "analytical-combinator" then
+        local new_cpu = cpu.new(code)
+        -- Associate the cpu's compiled cache with the entity's stable unit_number
+        new_cpu:set_cache_key(entity.unit_number)
         storage.analytical_combinators[entity.unit_number] = {
-            entity           = entity,
-            cpu              = cpu.new(code),
+            entity            = entity,
+            cpu               = new_cpu,
             last_process_tick = game.tick,
         }
         clear_outputs(entity)

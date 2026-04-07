@@ -1,4 +1,25 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.22
+Date: 07. 04. 2026
+  Bugfixes:
+    - Fixed CRC error on load caused by 0.8.21 attempting to write the compiled program
+      array into storage during on_load(). Factorio explicitly forbids storage writes
+      in on_load() as they cause desyncs in multiplayer.
+    - Root cause: the compiled array is ephemeral derived data that must never be
+      stored in storage. It belongs in a module-level Lua cache that is rebuilt on
+      every load from the persisted self.memory source of truth.
+  Changes:
+    - Introduced _compiled_cache: a module-level table in cpu.lua (outside storage)
+      keyed by unit_number. step() looks up the compiled program here instead of on
+      the cpu object. The cache is rebuilt in on_load() via rebuild_compiled() which
+      only reads self.memory from storage — no writes, no CRC violation.
+    - Added cpu:set_cache_key(unit_number) called by register_entity() in events.lua
+      to associate a newly-placed cpu with its entity's stable unit_number as the key.
+      New cpu objects created before placement use a temporary negative key.
+    - Added cpu:rebuild_compiled() for use in on_load and on_configuration_changed.
+    - Removed dead code: the input_signals nil-check backfill in reattach_metatables()
+      could never fire since input_signals has been present since the first version.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.21
 Date: 07. 04. 2026
   Bugfixes:
