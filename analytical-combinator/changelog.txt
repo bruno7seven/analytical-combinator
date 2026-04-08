@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.23
+Date: 07. 04. 2026
+  Bugfixes:
+    - Fixed remaining CRC error on load. The 0.8.22 fix moved the compiled array out
+      of storage, but still wrote _cache_key onto the cpu object (which lives in
+      storage) during on_load(), triggering the same CRC violation.
+    - Root cause: any field assignment to a table that is reachable from storage
+      counts as a storage write, even if the field is newly added and not the
+      serialised data itself.
+    - Fix: replaced _cache_key with tostring(self) as the _compiled_cache lookup key.
+      tostring() on a Lua table returns its memory address as a string, which is
+      unique per object within a session. No field is written to the cpu object
+      (storage) at any point during on_load. The cache is purely a Lua-state
+      construct, rebuilt from self.memory on every load with zero storage writes.
+    - Removed set_cache_key(), _cache_key, and _next_test_key as they are no
+      longer needed.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.22
 Date: 07. 04. 2026
   Bugfixes:

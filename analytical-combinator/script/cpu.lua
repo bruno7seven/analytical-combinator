@@ -19,7 +19,6 @@ local _arshift = _bitlib.arshift   -- arithmetic (sign-extend)
 -- Keyed by unit_number; 0 is used for cpu objects not yet associated with an entity
 -- (e.g. those created during testing).
 local _compiled_cache = {}
-local _next_test_key  = -1  -- negative keys for test/unregistered CPUs
 
 -- ── Prototype lookup helpers ──────────────────────────────────────────────────
 
@@ -455,7 +454,7 @@ end
 DISPATCH["JR"] = function(cpu, rec)
     local rs = cpu.registers[rec.a1]
     local target = (rs == 0) and 1 or rs
-    if target < 1 or target > #_compiled_cache[cpu._cache_key] then
+    if target < 1 or target > #_compiled_cache[tostring(cpu)] then
         cpu.status.error = true
         table.insert(cpu.errors,
             "[JR:" .. cpu.instruction_pointer .. "] Return address out of range: " .. target)
@@ -604,7 +603,7 @@ local function apply_validation_and_compile(cpu_state, memory)
     for _, e in ipairs(errs) do
         table.insert(cpu_state.errors, e)
     end
-    local key = cpu_state._cache_key
+    local key = tostring(cpu_state)
     if #errs > 0 then
         cpu_state.status.error = true
         _compiled_cache[key] = {}
@@ -625,10 +624,6 @@ function module.new(code)
     cpuClass.labels              = module.parse_labels(memory)
     cpuClass.errors              = {}
     cpuClass.input_signals       = { red = {}, green = {} }
-    -- Assign a temporary cache key (negative, not a real unit_number).
-    -- events.lua calls cpu:set_cache_key(unit_number) after placement.
-    cpuClass._cache_key          = _next_test_key
-    _next_test_key               = _next_test_key - 1
     apply_validation_and_compile(cpuClass, memory)
     return cpuClass
 end
@@ -647,7 +642,7 @@ function module:update_code(code)
     self.status        = { is_halted = false, jump_executed = false, error = false }
     self.errors        = {}
     self.input_signals = { red = {}, green = {} }
-    _compiled_cache[self._cache_key] = nil
+    _compiled_cache[tostring(self)] = nil
     apply_validation_and_compile(self, memory)
 end
 
@@ -655,19 +650,13 @@ function module:get_code()
     return self.memory
 end
 
--- Called by events.lua after the entity is placed, to associate this
--- cpu with its real unit_number as the cache key.
-function module:set_cache_key(unit_number)
-    local old_key = self._cache_key
-    _compiled_cache[unit_number] = _compiled_cache[old_key]
-    _compiled_cache[old_key]     = nil
-    self._cache_key              = unit_number
-end
-
 -- Called from control.lua on_load to rebuild the compiled cache from
 -- self.memory (which was persisted in storage). No storage writes occur.
+-- Called from control.lua on_load to rebuild the compiled cache from
+-- self.memory (which was persisted in storage). Uses tostring(self) as the
+-- cache key — the cpu object's Lua table identity, unique per session.
+-- No fields are written to self (storage), so on_load CRC is not violated.
 function module:rebuild_compiled()
-    -- Re-parse labels since they live in storage but we need them for compile()
     self.labels = module.parse_labels(self.memory)
     apply_validation_and_compile(self, self.memory)
 end
@@ -695,7 +684,7 @@ function module:step()
     if self.status.is_halted or self.status.error then return end
 
     local ip = self.instruction_pointer
-    local rec = _compiled_cache[self._cache_key][ip]
+    local rec = _compiled_cache[tostring(self)][ip]
     if rec == nil then
         self.status.error = true
         table.insert(self.errors, "No instruction at line " .. ip)
@@ -714,7 +703,7 @@ function module:step()
 
     if not handled_ip then
         -- Normal advance
-        self.instruction_pointer = (ip % #_compiled_cache[self._cache_key]) + 1
+        self.instruction_pointer = (ip % #_compiled_cache[tostring(self)]) + 1
     elseif self.status.jump_executed then
         self.status.jump_executed = false
     end
