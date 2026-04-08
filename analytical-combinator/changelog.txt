@@ -1,4 +1,22 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.25
+Date: 07. 04. 2026
+  Bugfixes:
+    - Fixed cross-combinator interference caused by tostring(self) as the compiled
+      cache key. tostring() returns a table's memory address, which changes every
+      time storage is deserialised. This caused stale cache entries, missing cache
+      entries, and multiple combinators accidentally sharing entries — producing the
+      symptoms of other combinators halting when a new one is placed, or programs
+      stopping when an unrelated combinator's code is saved.
+    - Replaced tostring(self) with self.unit_number as the stable cache key.
+      unit_number is the entity's permanent Factorio identifier, written onto the
+      cpu object at placement time (a normal runtime write, not an on_load write)
+      and persisted in storage. on_load reads it to rebuild the cache with zero
+      storage writes, satisfying Factorio's on_load CRC constraint.
+    - Added cpu:set_unit_number(n) called by register_entity() in events.lua.
+      New cpus start with unit_number = 0; set_unit_number() moves the cache entry
+      to the real key immediately after placement.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.24
 Date: 07. 04. 2026
   Optimizations:

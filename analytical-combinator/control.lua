@@ -10,8 +10,9 @@ local function reattach_metatables()
     for unit_number, data in pairs(storage.analytical_combinators) do
         if data.cpu then
             setmetatable(data.cpu, cpu)
-            -- Rebuild the compiled program from self.memory.
-            -- Uses tostring(cpu) as cache key — no fields written to storage.
+            -- Rebuild compiled cache from self.memory using self.unit_number
+            -- as the key. unit_number was written at placement time and
+            -- persisted in storage, so this is a read-only on_load operation.
             data.cpu:rebuild_compiled()
         end
     end
