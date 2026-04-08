@@ -82,14 +82,9 @@ end
 
 local function register_entity(entity, code)
     if entity.name == "analytical-combinator" then
-        local new_cpu = cpu.new(code)
-        -- Associate the compiled cache with this entity's stable unit_number.
-        -- unit_number is also persisted on the cpu object so on_load can
-        -- rebuild the cache without any storage write.
-        new_cpu:set_unit_number(entity.unit_number)
         storage.analytical_combinators[entity.unit_number] = {
-            entity            = entity,
-            cpu               = new_cpu,
+            entity           = entity,
+            cpu              = cpu.new(code),
             last_process_tick = game.tick,
         }
         clear_outputs(entity)
@@ -202,7 +197,7 @@ script.on_event(defines.events.on_tick, function()
                 read_network_signals(green_network)
             )
 
-            data.cpu:step()
+            data.cpu:tick()
 
             -- Update error display in any open GUI
             if #data.cpu:get_errors() ~= 0 then

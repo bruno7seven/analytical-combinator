@@ -1,19 +1,23 @@
 local cpu = require("script.cpu")
 
--- Reattach metatables to cpu objects after load (Factorio does not persist them).
--- Also rebuilds the compiled program cache which lives outside storage entirely,
--- so it is always absent after a load and must be reconstructed from self.memory.
--- This function only reads storage (via data.cpu.memory); it never writes to it,
--- making it safe to call from on_load.
+-- Re-attach the cpu module metatable to every stored CPU object.
+-- Factorio serialises storage as plain tables — metatables are not saved.
+-- This must be called in both on_load (normal resume) and on_configuration_changed
+-- (mod update), otherwise all cpu methods are nil after a load.
+-- Reattach the cpu module metatable to every stored cpu object after load.
+-- Factorio does not persist metatables or function references through the
+-- save/load cycle, so both must be restored here.
+-- reset_tick_fn() sets tick_fn = boot, which on the first tick will compile
+-- self.memory if needed (handles saves from pre-compilation versions) and
+-- then switch tick_fn to step for all subsequent ticks.
+-- This function only reads storage; it never writes to it, satisfying
+-- Factorio's on_load no-write constraint.
 local function reattach_metatables()
     storage.analytical_combinators = storage.analytical_combinators or {}
-    for unit_number, data in pairs(storage.analytical_combinators) do
+    for _, data in pairs(storage.analytical_combinators) do
         if data.cpu then
             setmetatable(data.cpu, cpu)
-            -- Rebuild compiled cache from self.memory using self.unit_number
-            -- as the key. unit_number was written at placement time and
-            -- persisted in storage, so this is a read-only on_load operation.
-            data.cpu:rebuild_compiled()
+            data.cpu:reset_tick_fn()
         end
     end
 end

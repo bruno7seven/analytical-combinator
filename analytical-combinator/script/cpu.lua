@@ -13,14 +13,6 @@ local _lshift  = _bitlib.lshift
 local _rshift  = _bitlib.rshift    -- logical (zero-fill)
 local _arshift = _bitlib.arshift   -- arithmetic (sign-extend)
 
--- Module-level cache: unit_number -> compiled program array.
--- Lives entirely outside storage — never serialised, rebuilt on every load.
--- Keyed by self.unit_number, stored on the cpu object at placement time
--- (a normal runtime write) and persisted in storage. on_load reads it to
--- repopulate the cache with no storage write required.
--- Test / unplaced cpu objects use unit_number = 0.
-local _compiled_cache = {}
-
 -- ── Prototype lookup helpers ──────────────────────────────────────────────────
 
 local function valid_signal_name(name)
@@ -73,8 +65,9 @@ end
 
 -- ── Load-time validator ───────────────────────────────────────────────────────
 --
--- Validates every instruction once at load time. step() runs with no validation.
--- The only runtime check is divide-by-zero (divisor only known at runtime).
+-- Validates every instruction once when code is loaded or saved. The normal
+-- execution path (step) runs with no validation. The only runtime check is
+-- divide-by-zero, where the divisor value is only known at execution time.
 --
 -- Argument descriptor types:
 --   "rd" / "rs" / "rt"  general-purpose register (x0-x31)
@@ -205,19 +198,15 @@ end
 
 -- ── Pre-compilation ───────────────────────────────────────────────────────────
 --
--- Converts the raw source line array into a "compiled" array of instruction
--- records that step() can execute with no string operations at all.
+-- Converts the raw source line array into a compiled array of instruction
+-- records. step() indexes directly into this array — no string operations,
+-- no tonumber(), no label lookups at runtime.
 --
--- Each compiled record is a table:
---   { op = "ADDI", a1 = "x10", a2 = "x0", a3 = 255 }
+-- Each record: { op = "ADDI", a1 = "x10", a2 = "x0", a3 = 255 }
+-- Immediates are pre-converted to numbers; labels to line numbers.
+-- Empty/label-only lines become { op = "NOP" }.
 --
--- Key optimisation: immediate arguments are resolved to numbers here, so
--- tonumber() is never called inside step(). Label arguments are resolved to
--- line numbers. WAIT's argument is resolved to either a register name string
--- or a pre-converted integer. Empty/label-only lines become { op = "NOP" }.
---
--- This function is only called after validate_program() has confirmed the
--- program is error-free, so it can assume all tokens are valid.
+-- Only called after validate_program() confirms the program is error-free.
 
 local function compile(memory, labels)
     local compiled = {}
@@ -453,7 +442,7 @@ end
 DISPATCH["JR"] = function(cpu, rec)
     local rs = cpu.registers[rec.a1]
     local target = (rs == 0) and 1 or rs
-    if target < 1 or target > #_compiled_cache[cpu.unit_number] then
+    if target < 1 or target > #cpu.compiled then
         cpu.status.error = true
         table.insert(cpu.errors,
             "[JR:" .. cpu.instruction_pointer .. "] Return address out of range: " .. target)
@@ -595,6 +584,81 @@ DISPATCH["CNTSG"] = function(cpu, rec)
     end
 end
 
+-- ── Tick function table ───────────────────────────────────────────────────────
+--
+-- cpu:tick(unit_number) is what events.lua calls every game tick.
+-- It dispatches through self.tick_fn, which is a direct function reference
+-- (not a table index) for minimum overhead.
+--
+-- On the first tick for each combinator, tick_fn points to boot(), which
+-- compiles self.memory if self.compiled is absent or empty (this covers
+-- combinators saved before the pre-compilation feature was introduced).
+-- boot() then replaces self.tick_fn with a direct reference to step so all
+-- subsequent ticks call step with no additional checks.
+--
+-- self.tick_fn is a function reference and cannot be saved in Factorio's
+-- storage (functions are not serialisable). reattach_metatables() in
+-- control.lua resets it to boot after every load, ensuring the boot path
+-- always runs at least once per session per combinator.
+
+local function step(cpu)
+    if cpu.status.is_halted or cpu.status.error then return end
+
+    -- WAIT fast path: the common case for polling programs (~95% of ticks).
+    -- Decrement and return with zero dispatch overhead.
+    local wc = cpu.status.wait_cycles
+    if wc ~= nil then
+        if wc > 0 then
+            cpu.status.wait_cycles = wc - 1
+        else
+            -- Wait expired: clear counter and advance IP this same tick.
+            cpu.status.wait_cycles = nil
+            cpu.instruction_pointer = (cpu.instruction_pointer % #cpu.compiled) + 1
+        end
+        return
+    end
+
+    local ip  = cpu.instruction_pointer
+    local rec = cpu.compiled[ip]
+    if rec == nil then
+        cpu.status.error = true
+        table.insert(cpu.errors, "No instruction at line " .. ip)
+        return
+    end
+
+    local handler = DISPATCH[rec.op]
+    if handler == nil then
+        cpu.status.error = true
+        table.insert(cpu.errors, "No handler for instruction: " .. rec.op)
+        return
+    end
+
+    local handled_ip = handler(cpu, rec)
+
+    if not handled_ip then
+        cpu.instruction_pointer = (ip % #cpu.compiled) + 1
+    elseif cpu.status.jump_executed then
+        cpu.status.jump_executed = false
+    end
+end
+
+local function boot(cpu)
+    -- Compile the program if absent (combinator saved before pre-compilation
+    -- was introduced, or first run after a code change via update_code).
+    if not cpu.compiled or #cpu.compiled == 0 then
+        cpu.labels = module.parse_labels(cpu.memory)
+        apply_validation_and_compile(cpu, cpu.memory)
+    end
+    -- Switch to step for all subsequent ticks — no more boot overhead.
+    cpu.tick_fn = step
+    -- Execute step on this same tick rather than losing a tick to boot.
+    step(cpu)
+end
+
+function module:tick()
+    self.tick_fn(self)
+end
+
 -- ── CPU lifecycle ─────────────────────────────────────────────────────────────
 
 local function apply_validation_and_compile(cpu_state, memory)
@@ -602,12 +666,11 @@ local function apply_validation_and_compile(cpu_state, memory)
     for _, e in ipairs(errs) do
         table.insert(cpu_state.errors, e)
     end
-    local key = cpu_state.unit_number
     if #errs > 0 then
         cpu_state.status.error = true
-        _compiled_cache[key] = {}
+        cpu_state.compiled = {}
     else
-        _compiled_cache[key] = compile(memory, cpu_state.labels)
+        cpu_state.compiled = compile(memory, cpu_state.labels)
     end
 end
 
@@ -623,10 +686,9 @@ function module.new(code)
     cpuClass.labels              = module.parse_labels(memory)
     cpuClass.errors              = {}
     cpuClass.input_signals       = { red = {}, green = {} }
-    -- unit_number = 0 for unplaced/test cpus.
-    -- events.lua calls cpu:set_unit_number(n) after placement.
-    cpuClass.unit_number = 0
+    cpuClass.compiled            = {}
     apply_validation_and_compile(cpuClass, memory)
+    cpuClass:reset_tick_fn()  -- set tick_fn = boot for first-tick initialisation
     return cpuClass
 end
 
@@ -644,100 +706,24 @@ function module:update_code(code)
     self.status        = { is_halted = false, jump_executed = false, error = false }
     self.errors        = {}
     self.input_signals = { red = {}, green = {} }
-    _compiled_cache[self.unit_number] = nil
+    self.compiled      = {}
     apply_validation_and_compile(self, memory)
+    self:reset_tick_fn()  -- reset to boot so next tick re-enters the boot path
 end
 
 function module:get_code()
     return self.memory
 end
 
--- Called by events.lua after entity placement. Moves the compiled cache
--- entry from key 0 (temporary) to the real unit_number, and persists
--- unit_number on self so on_load can find it without any storage write.
-function module:set_unit_number(unit_number)
-    if self.unit_number ~= unit_number then
-        _compiled_cache[unit_number] = _compiled_cache[self.unit_number]
-        _compiled_cache[self.unit_number] = nil
-        self.unit_number = unit_number
-    end
+
+-- Reset tick_fn to boot. Called by reattach_metatables() after every load
+-- so that boot() always runs at least once per session, ensuring compiled
+-- is always populated before step() is called.
+function module:reset_tick_fn()
+    self.tick_fn = boot
 end
 
--- Called from control.lua on_load to rebuild the compiled cache from
--- self.memory (which was persisted in storage). No storage writes occur.
--- Called from control.lua on_load to rebuild the compiled cache from
--- self.memory (persisted in storage). self.unit_number is already stored on
--- the cpu object so on_load only reads it — no storage write, no CRC violation.
-function module:rebuild_compiled()
-    self.labels = module.parse_labels(self.memory)
-    apply_validation_and_compile(self, self.memory)
-end
-
--- Called by control.lua after metatable reattachment on load.
--- Compiles the program if the compiled field is missing (saves created before
--- 0.8.20 will not have it). Safe to call unconditionally — it is a no-op if
--- compiled is already present and non-empty.
--- No longer needed — kept as a no-op for safety in case called from old code.
-function module:ensure_compiled()
-end
-
--- ── Instruction execution ─────────────────────────────────────────────────────
---
--- Hot path. Per tick per combinator. Optimised for minimum work:
---   1. Bounds check on instruction pointer
---   2. One table index into compiled[]
---   3. One table index into DISPATCH[]
---   4. One function call
---   5. IP advance (or not, if handler returned true)
---
--- No string operations, no tonumber(), no argument count checks.
-
-function module:step()
-    if self.status.is_halted or self.status.error then return end
-
-    -- Fast path: if we are mid-WAIT, just decrement and return.
-    -- This fires on ~95% of ticks in typical polling programs, so it must be
-    -- as lean as possible: two comparisons, a decrement, and a return.
-    local wc = self.status.wait_cycles
-    if wc ~= nil then
-        if wc > 0 then
-            self.status.wait_cycles = wc - 1
-            return
-        else
-            -- wc == 0: wait has expired. Clear it and advance IP past WAIT this tick.
-            self.status.wait_cycles = nil
-            self.instruction_pointer = (self.instruction_pointer % #_compiled_cache[self.unit_number]) + 1
-            return
-        end
-    end
-
-    local ip = self.instruction_pointer
-    local rec = _compiled_cache[self.unit_number][ip]
-    if rec == nil then
-        self.status.error = true
-        table.insert(self.errors, "No instruction at line " .. ip)
-        return
-    end
-
-    local handler = DISPATCH[rec.op]
-    if handler == nil then
-        -- Should never happen after validation, but guard anyway
-        self.status.error = true
-        table.insert(self.errors, "No handler for instruction: " .. rec.op)
-        return
-    end
-
-    local handled_ip = handler(self, rec)
-
-    if not handled_ip then
-        -- Normal advance
-        self.instruction_pointer = (ip % #_compiled_cache[self.unit_number]) + 1
-    elseif self.status.jump_executed then
-        self.status.jump_executed = false
-    end
-    -- If handled_ip is true but jump_executed is false, IP was already set
-    -- by the handler (e.g. WAIT keeping the same line) — do nothing.
-end
+-- ── Public execution interface ────────────────────────────────────────────────
 
 function module:is_halted()
     return self.status.is_halted

@@ -1,4 +1,28 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.26
+Date: 08. 04. 2026
+  Bugfixes:
+    - Fixed crash on load when analytical combinators were saved with versions
+      prior to 0.8.20. Those saves have no compiled program array. All previous
+      fix attempts (0.8.21-0.8.25) tried to compile during on_load, which
+      Factorio forbids as a storage write — causing a CRC error instead.
+  Changes:
+    - Replaced cpu:step() with a two-function tick state machine:
+        boot(cpu)  — runs on the first tick per session per combinator
+        step(cpu)  — runs on every subsequent tick
+      cpu:tick() dispatches through self.tick_fn which starts as boot and
+      switches to a direct reference to step after the first tick. After
+      initialisation the hot path is: one field read, one function call.
+    - boot() compiles self.memory if self.compiled is absent or empty,
+      handling all pre-compilation save versions with no on_load storage write.
+      After compiling, boot sets tick_fn = step and calls step on the same tick.
+    - self.tick_fn is a function reference (not serialisable). control.lua calls
+      cpu:reset_tick_fn() in reattach_metatables() after every load to restore it.
+      reset_tick_fn() writes only to the Lua state, not to storage.
+    - WAIT fast path from 0.8.24 retained in step().
+    - events.lua: data.cpu:step() -> data.cpu:tick().
+    - test.lua: myCpu:step() -> myCpu:tick() throughout (158 call sites).
+---------------------------------------------------------------------------------------------------
 Version: 0.8.25
 Date: 07. 04. 2026
   Bugfixes:
