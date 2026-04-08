@@ -1,4 +1,18 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.24
+Date: 07. 04. 2026
+  Optimizations:
+    - Added a WAIT fast path at the very top of step(). When wait_cycles is non-nil,
+      step() decrements the counter and returns immediately — before any cache lookup,
+      dispatch table access, or function call. For programs that spend most of their
+      time in WAIT (e.g. polling loops with WAIT 60), this eliminates nearly all
+      per-tick overhead for the waiting period.
+    - Simplified the DISPATCH["WAIT"] handler now that the decrement loop has moved
+      to the fast path. The handler's only job is to set wait_cycles on first encounter
+      and keep IP on the WAIT instruction.
+    - Added test: 'WAIT N occupies exactly N ticks before executing the next instruction'
+      to permanently lock in the correct tick-counting semantics. 165 tests total.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.23
 Date: 07. 04. 2026
   Bugfixes:

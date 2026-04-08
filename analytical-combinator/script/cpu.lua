@@ -419,19 +419,17 @@ DISPATCH["SRAI"] = function(cpu, rec)
     end
 end
 
+-- DISPATCH["WAIT"] is called only on the tick where WAIT is first encountered.
+-- On subsequent ticks, step() returns early from the wait_cycles fast path
+-- without ever reaching the dispatch table. This handler's only job is to
+-- set wait_cycles and keep IP on the WAIT instruction for the first tick.
 DISPATCH["WAIT"] = function(cpu, rec)
     local a1 = rec.a1
-    if cpu.status.wait_cycles == nil then
-        local val = type(a1) == "number" and a1 or cpu.registers[a1]
-        cpu.status.wait_cycles = val - 1
-        return true   -- do not advance IP
-    elseif cpu.status.wait_cycles > 1 then
-        cpu.status.wait_cycles = cpu.status.wait_cycles - 1
-        return true
-    else
-        cpu.status.wait_cycles = nil
-        -- fall through; advance IP normally
-    end
+    local val = type(a1) == "number" and a1 or cpu.registers[a1]
+    -- Store val - 1 because this tick counts as the first wait tick.
+    -- The fast path in step() will then decrement val-1 more times.
+    cpu.status.wait_cycles = val - 1
+    return true   -- keep IP on this WAIT instruction
 end
 
 DISPATCH["WSIG"] = function(cpu, rec)
@@ -682,6 +680,22 @@ end
 
 function module:step()
     if self.status.is_halted or self.status.error then return end
+
+    -- Fast path: if we are mid-WAIT, just decrement and return.
+    -- This fires on ~95% of ticks in typical polling programs, so it must be
+    -- as lean as possible: two comparisons, a decrement, and a return.
+    local wc = self.status.wait_cycles
+    if wc ~= nil then
+        if wc > 0 then
+            self.status.wait_cycles = wc - 1
+            return
+        else
+            -- wc == 0: wait has expired. Clear it and advance IP past WAIT this tick.
+            self.status.wait_cycles = nil
+            self.instruction_pointer = (self.instruction_pointer % #_compiled_cache[tostring(self)]) + 1
+            return
+        end
+    end
 
     local ip = self.instruction_pointer
     local rec = _compiled_cache[tostring(self)][ip]

@@ -635,6 +635,16 @@ describe("CPU tests", function()
         assert.are.equal(1, #myCpu:get_errors())
     end)
 
+    it("WAIT N occupies exactly N ticks before executing the next instruction", function()
+        -- WAIT 5 should consume exactly 5 step() calls, with the 6th executing ADDI
+        local code = { "WAIT 5", "ADDI x10, x0, 99", "HLT" }
+        local myCpu = cpu.new(code)
+        for _ = 1, 5 do myCpu:step() end
+        assert.are.equal(0,  myCpu:get_register("x10"))  -- still waiting after 5 steps
+        myCpu:step()                                       -- step 6: ADDI fires
+        assert.are.equal(99, myCpu:get_register("x10"))
+    end)
+
     it("handles WAIT with non-numeric non-register arg without crashing", function()
         local myCpu = cpu.new({ "WAIT abc" })
         assert.has_no.errors(function() myCpu:step() end)
