@@ -1,4 +1,24 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.28
+Date: 08. 04. 2026
+  Bugfixes:
+    - Fixed 'Cannot serialise lua functions' on save. self.tick_fn stored a function
+      reference on the cpu object in storage, which Factorio cannot serialise.
+    - Fixed boot/step state being shared across all combinator instances. The previous
+      attempt used a module-level tick_fn_ndx variable, so any combinator's boot()
+      call would switch every other combinator to step() before it had compiled.
+  Changes:
+    - self.tick_ndx replaces self.tick_fn. It is an integer (0 or 1) stored on each
+      cpu object — fully serialisable. 0 = call boot, 1 = call step.
+    - TICK_FN = {boot, step} is a module-level table (not in storage).
+      cpu:tick() calls TICK_FN[(self.tick_ndx or 0) + 1](self). The 'or 0' handles
+      old saves where tick_ndx was not yet present (nil).
+    - boot() sets cpu.tick_ndx = 1 after compiling. All subsequent ticks call step().
+    - control.lua reattach_metatables() only calls setmetatable() — no other writes
+      to storage, fully compliant with on_load constraints.
+    - reset_tick_fn() removed; no longer needed.
+    - cpu:tick_step() retained for direct step() access in tests.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.26
 Date: 08. 04. 2026
   Bugfixes:

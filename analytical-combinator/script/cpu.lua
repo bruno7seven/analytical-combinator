@@ -584,22 +584,33 @@ DISPATCH["CNTSG"] = function(cpu, rec)
     end
 end
 
--- ── Tick function table ───────────────────────────────────────────────────────
+local function apply_validation_and_compile(cpu_state, memory)
+    local errs = module.validate_program(memory)
+    for _, e in ipairs(errs) do
+        table.insert(cpu_state.errors, e)
+    end
+    if #errs > 0 then
+        cpu_state.status.error = true
+        cpu_state.compiled = {}
+    else
+        cpu_state.compiled = compile(memory, cpu_state.labels)
+    end
+end
+
+
+-- ── Tick function table ─────────────────────────────────────────────────────
 --
--- cpu:tick(unit_number) is what events.lua calls every game tick.
--- It dispatches through self.tick_fn, which is a direct function reference
--- (not a table index) for minimum overhead.
+-- TICK_FN is a module-level table (not in storage) holding two functions:
+--   TICK_FN[1] = boot  — runs on the first tick, compiles if needed
+--   TICK_FN[2] = step  — runs every subsequent tick
 --
--- On the first tick for each combinator, tick_fn points to boot(), which
--- compiles self.memory if self.compiled is absent or empty (this covers
--- combinators saved before the pre-compilation feature was introduced).
--- boot() then replaces self.tick_fn with a direct reference to step so all
--- subsequent ticks call step with no additional checks.
+-- self.tick_ndx (0 or 1) is stored on each cpu object in storage, so it
+-- persists through saves. It is an integer — fully serialisable.
+-- TICK_FN[self.tick_ndx + 1](self) selects the right function each tick.
 --
--- self.tick_fn is a function reference and cannot be saved in Factorio's
--- storage (functions are not serialisable). reattach_metatables() in
--- control.lua resets it to boot after every load, ensuring the boot path
--- always runs at least once per session per combinator.
+-- Combinators from saves before this feature was introduced will have
+-- tick_ndx = nil. tick() uses (self.tick_ndx or 0) so nil is treated as 0,
+-- calling boot() on the first tick. No migration or on_load write needed.
 
 local function step(cpu)
     if cpu.status.is_halted or cpu.status.error then return end
@@ -643,36 +654,37 @@ local function step(cpu)
 end
 
 local function boot(cpu)
-    -- Compile the program if absent (combinator saved before pre-compilation
-    -- was introduced, or first run after a code change via update_code).
+    -- Compile the program if absent. This handles combinators saved before
+    -- pre-compilation was introduced (no compiled field) as well as any other
+    -- case where compiled is missing or empty.
     if not cpu.compiled or #cpu.compiled == 0 then
         cpu.labels = module.parse_labels(cpu.memory)
         apply_validation_and_compile(cpu, cpu.memory)
     end
-    -- Switch to step for all subsequent ticks — no more boot overhead.
-    cpu.tick_fn = step
-    -- Execute step on this same tick rather than losing a tick to boot.
-    step(cpu)
+    -- Advance index so all future ticks call step() directly.
+    -- tick_ndx is an integer stored on self (serialisable), not a function ref.
+    cpu.tick_ndx = 1
 end
 
+local TICK_FN = {boot, step}
+
+-- Called every game tick by events.lua.
+-- TICK_FN[1] = boot  (compiles if needed, then sets tick_ndx = 1)
+-- TICK_FN[2] = step  (normal execution, called every tick after boot)
+-- self.tick_ndx is 0 on first run (or after migration), 1 thereafter.
+-- It is an integer stored in storage — fully serialisable.
 function module:tick()
-    self.tick_fn(self)
+    TICK_FN[(self.tick_ndx or 0) + 1](self)
+end
+
+-- For testing: call step() directly, bypassing the boot/tick dispatch.
+-- Assumes compiled is already populated (e.g. by new() calling
+-- apply_validation_and_compile).
+function module:tick_step()
+    TICK_FN[2](self)
 end
 
 -- ── CPU lifecycle ─────────────────────────────────────────────────────────────
-
-local function apply_validation_and_compile(cpu_state, memory)
-    local errs = module.validate_program(memory)
-    for _, e in ipairs(errs) do
-        table.insert(cpu_state.errors, e)
-    end
-    if #errs > 0 then
-        cpu_state.status.error = true
-        cpu_state.compiled = {}
-    else
-        cpu_state.compiled = compile(memory, cpu_state.labels)
-    end
-end
 
 function module.new(code)
     local cpuClass = setmetatable({}, module)
@@ -687,8 +699,8 @@ function module.new(code)
     cpuClass.errors              = {}
     cpuClass.input_signals       = { red = {}, green = {} }
     cpuClass.compiled            = {}
+    cpuClass.tick_ndx            = 1  -- Skip boot() b/c new() does everything boot() would
     apply_validation_and_compile(cpuClass, memory)
-    cpuClass:reset_tick_fn()  -- set tick_fn = boot for first-tick initialisation
     return cpuClass
 end
 
@@ -707,21 +719,14 @@ function module:update_code(code)
     self.errors        = {}
     self.input_signals = { red = {}, green = {} }
     self.compiled      = {}
+    self.tick_ndx      = 1   -- Skip boot() b/c update_code() does everything boot() would
     apply_validation_and_compile(self, memory)
-    self:reset_tick_fn()  -- reset to boot so next tick re-enters the boot path
 end
 
 function module:get_code()
     return self.memory
 end
 
-
--- Reset tick_fn to boot. Called by reattach_metatables() after every load
--- so that boot() always runs at least once per session, ensuring compiled
--- is always populated before step() is called.
-function module:reset_tick_fn()
-    self.tick_fn = boot
-end
 
 -- ── Public execution interface ────────────────────────────────────────────────
 

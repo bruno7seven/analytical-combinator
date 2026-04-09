@@ -1,23 +1,16 @@
 local cpu = require("script.cpu")
 
--- Re-attach the cpu module metatable to every stored CPU object.
--- Factorio serialises storage as plain tables — metatables are not saved.
--- This must be called in both on_load (normal resume) and on_configuration_changed
--- (mod update), otherwise all cpu methods are nil after a load.
 -- Reattach the cpu module metatable to every stored cpu object after load.
--- Factorio does not persist metatables or function references through the
--- save/load cycle, so both must be restored here.
--- reset_tick_fn() sets tick_fn = boot, which on the first tick will compile
--- self.memory if needed (handles saves from pre-compilation versions) and
--- then switch tick_fn to step for all subsequent ticks.
--- This function only reads storage; it never writes to it, satisfying
--- Factorio's on_load no-write constraint.
+-- Factorio does not persist metatables through the save/load cycle.
+-- self.tick_ndx (0 or 1) is an integer stored in storage and persists
+-- correctly — no write needed here. Combinators from pre-tick_ndx saves
+-- will have tick_ndx = nil. cpu:tick() uses (self.tick_ndx or 0) + 1
+-- so nil is treated as 0, calling boot() on the first tick.
 local function reattach_metatables()
     storage.analytical_combinators = storage.analytical_combinators or {}
     for _, data in pairs(storage.analytical_combinators) do
         if data.cpu then
             setmetatable(data.cpu, cpu)
-            data.cpu:reset_tick_fn()
         end
     end
 end
