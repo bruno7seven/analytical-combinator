@@ -584,6 +584,20 @@ DISPATCH["CNTSG"] = function(cpu, rec)
     end
 end
 
+local function apply_validation_and_compile(cpu_state, memory)
+    local errs = module.validate_program(memory)
+    for _, e in ipairs(errs) do
+        table.insert(cpu_state.errors, e)
+    end
+    if #errs > 0 then
+        cpu_state.status.error = true
+        cpu_state.compiled = {}
+    else
+        cpu_state.compiled = compile(memory, cpu_state.labels)
+    end
+end
+
+
 -- ── Tick function table ───────────────────────────────────────────────────────
 --
 -- cpu:tick(unit_number) is what events.lua calls every game tick.
@@ -642,37 +656,35 @@ local function step(cpu)
     end
 end
 
+local tick_fn_ndx = 0
+
 local function boot(cpu)
     -- Compile the program if absent (combinator saved before pre-compilation
     -- was introduced, or first run after a code change via update_code).
-    if not cpu.compiled or #cpu.compiled == 0 then
+    if cpu.compiled == nil then
+    -- if not cpu.compiled or #cpu.compiled == 0 then
         cpu.labels = module.parse_labels(cpu.memory)
         apply_validation_and_compile(cpu, cpu.memory)
     end
     -- Switch to step for all subsequent ticks — no more boot overhead.
-    cpu.tick_fn = step
+    -- cpu.tick_fn = step
+    tick_fn_ndx = 1
     -- Execute step on this same tick rather than losing a tick to boot.
-    step(cpu)
+    -- step(cpu)
 end
 
+local TICK_FN = {boot, step}
+
 function module:tick()
-    self.tick_fn(self)
+    -- self.tick_fn(self)
+    TICK_FN[tick_fn_ndx+1](self)
+end
+
+function module:tick_step()
+    self.step(self)
 end
 
 -- ── CPU lifecycle ─────────────────────────────────────────────────────────────
-
-local function apply_validation_and_compile(cpu_state, memory)
-    local errs = module.validate_program(memory)
-    for _, e in ipairs(errs) do
-        table.insert(cpu_state.errors, e)
-    end
-    if #errs > 0 then
-        cpu_state.status.error = true
-        cpu_state.compiled = {}
-    else
-        cpu_state.compiled = compile(memory, cpu_state.labels)
-    end
-end
 
 function module.new(code)
     local cpuClass = setmetatable({}, module)
@@ -720,7 +732,7 @@ end
 -- so that boot() always runs at least once per session, ensuring compiled
 -- is always populated before step() is called.
 function module:reset_tick_fn()
-    self.tick_fn = boot
+    -- self.tick_fn = boot
 end
 
 -- ── Public execution interface ────────────────────────────────────────────────
