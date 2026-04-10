@@ -3,7 +3,7 @@ local cpu = require("script.cpu")
 -- Reattach the cpu module metatable to every stored cpu object after load.
 -- Factorio does not persist metatables through the save/load cycle.
 -- self.tick_ndx (0 or 1) is an integer stored in storage and persists
--- correctly — no write needed here. Combinators from pre-tick_ndx saves
+-- correctly â€” no write needed here. Combinators from pre-tick_ndx saves
 -- will have tick_ndx = nil. cpu:tick() uses (self.tick_ndx or 0) + 1
 -- so nil is treated as 0, calling boot() on the first tick.
 local function reattach_metatables()

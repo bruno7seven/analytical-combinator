@@ -825,6 +825,30 @@ describe("CPU tests", function()
 
     -- ── Load-time validation (validate_program) ─────────────────────────────────
 
+    it("duplicate label errors at load time", function()
+        local myCpu = cpu.new({
+            "loop:",
+            "    ADDI x10, x10, 1",
+            "loop:",        -- duplicate
+            "    HLT",
+        })
+        assert.is_true(myCpu.status.error)
+        assert.is_true(myCpu:get_errors()[1]:find("Duplicate label") ~= nil)
+    end)
+
+    it("unique labels do not produce an error", function()
+        local myCpu = cpu.new({
+            "start:",
+            "    LI x10, 0",
+            "loop:",
+            "    ADDI x10, x10, 1",
+            "    BLTI x10, 5, loop",
+            "end_:",
+            "    HLT",
+        })
+        assert.is_false(myCpu.status.error)
+    end)
+
     it("unknown instruction errors at load time", function()
         local myCpu = cpu.new({ "ADDI x10, x0, 1", "FOOBAR x1, x2", "HLT" })
         assert.is_true(myCpu.status.error)

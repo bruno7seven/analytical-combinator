@@ -1,4 +1,14 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.29
+Date: 08. 04. 2026
+  Features:
+    - validate_program() now detects duplicate labels at compile time.
+      Error format: [label:N] Duplicate label 'name' (first defined on line M)
+      The check runs before the instruction scan so all duplicate labels in a
+      program are reported in a single save, alongside any other errors.
+    - 2 new tests: duplicate label detection, and confirmation that distinct
+      labels do not produce false positives. 167 tests total.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.28
 Date: 08. 04. 2026
   Bugfixes:

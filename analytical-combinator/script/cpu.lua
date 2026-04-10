@@ -134,6 +134,21 @@ function module.validate_program(memory)
         table.insert(errors, "[" .. mnemonic .. ":" .. line_num .. "] " .. msg)
     end
 
+    -- Check for duplicate labels before scanning instructions.
+    local seen_labels = {}
+    for line_num, line in ipairs(memory) do
+        local label = line:match("^%s*([%w_][%w_]*):%s*")
+        if label then
+            if seen_labels[label] then
+                table.insert(errors,
+                    "[label:" .. line_num .. "] Duplicate label '" .. label ..
+                    "' (first defined on line " .. seen_labels[label] .. ")")
+            else
+                seen_labels[label] = line_num
+            end
+        end
+    end
+
     for line_num, line in ipairs(memory) do
         local tokens = tokenize(line)
         if #tokens == 0 then goto continue end
