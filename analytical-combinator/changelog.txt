@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.30
+Date: 08. 04. 2026
+  Features:
+    - Added ANDI rd, rs, imm — bitwise AND with immediate (rd = rs & imm)
+    - Added ORI  rd, rs, imm — bitwise OR with immediate  (rd = rs | imm)
+    - Added XORI rd, rs, imm — bitwise XOR with immediate (rd = rs ^ imm)
+      All three accept decimal, hex (0x prefix), and negative immediates.
+      Useful for masking, setting, and toggling specific bits without needing
+      a register to hold the mask constant.
+  Changes:
+    - 7 new tests. 174 tests total.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.29
 Date: 08. 04. 2026
   Features:

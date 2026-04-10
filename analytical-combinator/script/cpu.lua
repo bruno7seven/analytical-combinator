@@ -96,6 +96,9 @@ local INSTR = {
     OR    = { 3, { "rd",  "rs",  "rt"  } },
     XOR   = { 3, { "rd",  "rs",  "rt"  } },
     NOT   = { 2, { "rd",  "rs"         } },
+    ANDI  = { 3, { "rd",  "rs",  "imm" } },
+    ORI   = { 3, { "rd",  "rs",  "imm" } },
+    XORI  = { 3, { "rd",  "rs",  "imm" } },
     SLL   = { 3, { "rd",  "rs",  "rt"  } },
     SLLI  = { 3, { "rd",  "rs",  "imm" } },
     SRL   = { 3, { "rd",  "rs",  "rt"  } },
@@ -379,6 +382,24 @@ end
 DISPATCH["XOR"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
         cpu.registers[rec.a1] = _bxor(cpu.registers[rec.a2], cpu.registers[rec.a3])
+    end
+end
+
+DISPATCH["ANDI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _band(cpu.registers[rec.a2], rec.a3)
+    end
+end
+
+DISPATCH["ORI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _bor(cpu.registers[rec.a2], rec.a3)
+    end
+end
+
+DISPATCH["XORI"] = function(cpu, rec)
+    if rec.a1 ~= "x0" then
+        cpu.registers[rec.a1] = _bxor(cpu.registers[rec.a2], rec.a3)
     end
 end
 

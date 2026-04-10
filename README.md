@@ -48,10 +48,13 @@ I've also added branch immediate instructions where a full 32-bit immediate valu
 
 | Instruction | Syntax | Description |
 |---|---|---|
-| `AND` | `rd, rs, rt` | `rd = rs & rt` — bitwise AND |
-| `OR`  | `rd, rs, rt` | `rd = rs \| rt` — bitwise OR |
-| `XOR` | `rd, rs, rt` | `rd = rs ^ rt` — bitwise XOR |
-| `NOT` | `rd, rs`     | `rd = ~rs` — bitwise NOT (unary) |
+| `AND`  | `rd, rs, rt`  | `rd = rs & rt` — bitwise AND |
+| `ANDI` | `rd, rs, imm` | `rd = rs & imm` — bitwise AND with immediate |
+| `OR`   | `rd, rs, rt`  | `rd = rs \| rt` — bitwise OR |
+| `ORI`  | `rd, rs, imm` | `rd = rs \| imm` — bitwise OR with immediate |
+| `XOR`  | `rd, rs, rt`  | `rd = rs ^ rt` — bitwise XOR |
+| `XORI` | `rd, rs, imm` | `rd = rs ^ imm` — bitwise XOR with immediate |
+| `NOT`  | `rd, rs`      | `rd = ~rs` — bitwise NOT (unary) |
 
 ### Shifts
 

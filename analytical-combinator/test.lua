@@ -1290,6 +1290,30 @@ describe("CPU tests", function()
         assert.are.equal(15, myCpu:get_register("x12"))
     end)
 
+    -- ── ANDI ─────────────────────────────────────────────────────────────────
+
+    it("ANDI masks with immediate", function()
+        local code = { "LI x10, 0xFF", "ANDI x11, x10, 0x0F", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(15, myCpu:get_register("x11"))
+    end)
+
+    it("ANDI accepts hex immediate", function()
+        local code = { "LI x10, 255", "ANDI x11, x10, 0xF0", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(240, myCpu:get_register("x11"))
+    end)
+
+    it("ANDI write to x0 silently ignored", function()
+        local code = { "LI x10, 255", "ANDI x0, x10, 0xFF", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(0, myCpu:get_register("x0"))
+        assert.is_false(myCpu.status.error)
+    end)
+
     -- ── OR ───────────────────────────────────────────────────────────────────
 
     it("OR performs bitwise OR", function()
@@ -1302,6 +1326,23 @@ describe("CPU tests", function()
 
     it("OR with zero is identity", function()
         local code = { "ADDI x10, x0, 42", "OR x11, x10, x0", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(42, myCpu:get_register("x11"))
+    end)
+
+    -- ── ORI ─────────────────────────────────────────────────────────────────
+
+    it("ORI sets bits with immediate", function()
+        -- 0b00001100 | 0b00000011 = 0b00001111 = 15
+        local code = { "LI x10, 12", "ORI x11, x10, 3", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(15, myCpu:get_register("x11"))
+    end)
+
+    it("ORI with zero immediate is identity", function()
+        local code = { "LI x10, 42", "ORI x11, x10, 0", "HLT" }
         local myCpu = cpu.new(code)
         while not myCpu:is_halted() do myCpu:tick_step() end
         assert.are.equal(42, myCpu:get_register("x11"))
@@ -1322,6 +1363,24 @@ describe("CPU tests", function()
         local myCpu = cpu.new(code)
         while not myCpu:is_halted() do myCpu:tick_step() end
         assert.are.equal(0, myCpu:get_register("x10"))
+    end)
+
+    -- ── XORI ─────────────────────────────────────────────────────────────────
+
+    it("XORI toggles bits with immediate", function()
+        -- 0b00111100 ^ 0b00001111 = 0b00110011 = 51
+        local code = { "LI x10, 60", "XORI x11, x10, 15", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(51, myCpu:get_register("x11"))
+    end)
+
+    it("XORI with self-as-immediate clears to zero only when value matches", function()
+        -- XOR with all-ones (~0) flips all bits — same as NOT
+        local code = { "LI x10, 0", "XORI x11, x10, -1", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(-1, myCpu:get_register("x11"))
     end)
 
     -- ── NOT ──────────────────────────────────────────────────────────────────
