@@ -823,6 +823,37 @@ describe("CPU tests", function()
         assert.are.equal(1, #myCpu:get_errors())
     end)
 
+    -- ── Comment colon regression ──────────────────────────────────────────────
+
+    it("colon inside a comment does not corrupt instruction parsing", function()
+        -- Before the fix, '# x10: counter' caused tokenize() to strip everything
+        -- up to the colon and return 'counter' as the mnemonic, raising an error.
+        local code = {
+            "loop:",
+            "    ADDI x10, x10, 1   # x10: loop counter",
+            "    WSIG o0, signal-A, x10   # signal-A: output",
+            "    BLTI x10, 5, loop   # loop: branch back",
+            "    HLT",
+        }
+        local myCpu = cpu.new(code)
+        assert.is_false(myCpu.status.error)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(5, myCpu:get_register("x10"))
+    end)
+
+    it("standalone comment line with colon does not produce a spurious token", function()
+        local code = {
+            "# init: setup registers",
+            "LI x10, 42",
+            "# done: finished",
+            "HLT",
+        }
+        local myCpu = cpu.new(code)
+        assert.is_false(myCpu.status.error)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(42, myCpu:get_register("x10"))
+    end)
+
     -- ── Load-time validation (validate_program) ─────────────────────────────────
 
     it("duplicate label errors at load time", function()

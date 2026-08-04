@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.31
+Date: 08. 04. 2026
+  Bugfixes:
+    - Fixed tokenize() misinterpreting colons inside comments as label delimiters.
+      The label-strip regex (^[^:]*:%s*) was applied before the comment-strip regex
+      (#.*), so a comment like '# x10: counter' caused the tokenizer to discard
+      everything up to the colon, returning 'counter' as the instruction mnemonic.
+      Fix: strip comments first, then strip labels. One-line swap in tokenize().
+    - 2 regression tests added: colon in inline comment, standalone comment-only
+      line with colon. 176 tests total.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.30
 Date: 08. 04. 2026
   Features:
@@ -9,6 +20,10 @@ Date: 08. 04. 2026
       Useful for masking, setting, and toggling specific bits without needing
       a register to hold the mask constant.
   Changes:
+    - tick_ndx initialised to 1 (not 0) in new() and update_code(). Both
+      functions already call apply_validation_and_compile(), so boot() would
+      be redundant on the first tick. Only old saves (tick_ndx = nil) still
+      route through boot() for lazy compilation on first tick.
     - 7 new tests. 174 tests total.
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.29

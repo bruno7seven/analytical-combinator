@@ -53,8 +53,10 @@ end
 -- ── Tokenizer ─────────────────────────────────────────────────────────────────
 
 local function tokenize(line)
-    local stripped = line:gsub("^[^:]*:%s*", "")
-                         :gsub("#.*", "")
+    -- Strip comment first so a colon inside a comment is never mistaken
+    -- for a label delimiter (e.g. '# loop: comment' would corrupt parsing).
+    local stripped = line:gsub("#.*", "")
+                         :gsub("^[^:]*:%s*", "")
                          :gsub("%s+$", "")
     local tokens = {}
     for tok in stripped:gmatch("[^%s,]+") do
