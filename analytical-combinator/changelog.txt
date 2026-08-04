@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.31
-Date: 08. 04. 2026
+Date: 04. 08. 2026
   Bugfixes:
     - Fixed tokenize() misinterpreting colons inside comments as label delimiters.
       The label-strip regex (^[^:]*:%s*) was applied before the comment-strip regex
