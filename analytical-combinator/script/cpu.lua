@@ -13,6 +13,16 @@ local _lshift  = _bitlib.lshift
 local _rshift  = _bitlib.rshift    -- logical (zero-fill)
 local _arshift = _bitlib.arshift   -- arithmetic (sign-extend)
 
+-- LuaJIT's bit library returns all results as unsigned 32-bit integers.
+-- Factorio signal values must be signed 32-bit (-2147483648..2147483647).
+-- This helper converts an unsigned 32-bit result to its signed equivalent.
+local _INT32_MAX =  2147483647   -- 0x7FFFFFFF
+local _UINT32    =  4294967296   -- 0x100000000
+local function _s32(n)
+    if n > _INT32_MAX then return n - _UINT32 end
+    return n
+end
+
 -- ── Prototype lookup helpers ──────────────────────────────────────────────────
 
 local function valid_signal_name(name)
@@ -371,79 +381,79 @@ end
 
 DISPATCH["AND"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _band(cpu.registers[rec.a2], cpu.registers[rec.a3])
+        cpu.registers[rec.a1] = _s32(_band(cpu.registers[rec.a2], cpu.registers[rec.a3]))
     end
 end
 
 DISPATCH["OR"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _bor(cpu.registers[rec.a2], cpu.registers[rec.a3])
+        cpu.registers[rec.a1] = _s32(_bor(cpu.registers[rec.a2], cpu.registers[rec.a3]))
     end
 end
 
 DISPATCH["XOR"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _bxor(cpu.registers[rec.a2], cpu.registers[rec.a3])
+        cpu.registers[rec.a1] = _s32(_bxor(cpu.registers[rec.a2], cpu.registers[rec.a3]))
     end
 end
 
 DISPATCH["ANDI"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _band(cpu.registers[rec.a2], rec.a3)
+        cpu.registers[rec.a1] = _s32(_band(cpu.registers[rec.a2], rec.a3))
     end
 end
 
 DISPATCH["ORI"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _bor(cpu.registers[rec.a2], rec.a3)
+        cpu.registers[rec.a1] = _s32(_bor(cpu.registers[rec.a2], rec.a3))
     end
 end
 
 DISPATCH["XORI"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _bxor(cpu.registers[rec.a2], rec.a3)
+        cpu.registers[rec.a1] = _s32(_bxor(cpu.registers[rec.a2], rec.a3))
     end
 end
 
 DISPATCH["NOT"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _bnot(cpu.registers[rec.a2])
+        cpu.registers[rec.a1] = _s32(_bnot(cpu.registers[rec.a2]))
     end
 end
 
 DISPATCH["SLL"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _lshift(cpu.registers[rec.a2], cpu.registers[rec.a3])
+        cpu.registers[rec.a1] = _s32(_lshift(cpu.registers[rec.a2], cpu.registers[rec.a3]))
     end
 end
 
 DISPATCH["SLLI"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _lshift(cpu.registers[rec.a2], rec.a3)
+        cpu.registers[rec.a1] = _s32(_lshift(cpu.registers[rec.a2], rec.a3))
     end
 end
 
 DISPATCH["SRL"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _rshift(cpu.registers[rec.a2], cpu.registers[rec.a3])
+        cpu.registers[rec.a1] = _s32(_rshift(cpu.registers[rec.a2], cpu.registers[rec.a3]))
     end
 end
 
 DISPATCH["SRLI"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _rshift(cpu.registers[rec.a2], rec.a3)
+        cpu.registers[rec.a1] = _s32(_rshift(cpu.registers[rec.a2], rec.a3))
     end
 end
 
 DISPATCH["SRA"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _arshift(cpu.registers[rec.a2], cpu.registers[rec.a3])
+        cpu.registers[rec.a1] = _s32(_arshift(cpu.registers[rec.a2], cpu.registers[rec.a3]))
     end
 end
 
 DISPATCH["SRAI"] = function(cpu, rec)
     if rec.a1 ~= "x0" then
-        cpu.registers[rec.a1] = _arshift(cpu.registers[rec.a2], rec.a3)
+        cpu.registers[rec.a1] = _s32(_arshift(cpu.registers[rec.a2], rec.a3))
     end
 end
 

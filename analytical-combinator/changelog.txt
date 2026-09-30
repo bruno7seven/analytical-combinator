@@ -1,4 +1,23 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.32
+Date: 30. 09. 2026
+  Bugfixes:
+    - Fixed integer overflow crash when bitwise operations produced values outside
+      the signed 32-bit range that Factorio requires for signal counts.
+    - Root cause: LuaJIT's bit library always returns unsigned 32-bit results.
+      For example, _arshift(-123, 31) returns 4294967295 (0xFFFFFFFF unsigned)
+      rather than -1. When written to an output register via WSIG, Factorio
+      rejected the out-of-range value with a non-recoverable error.
+    - Fix: added _s32(n) helper that sign-extends an unsigned 32-bit result to
+      a signed 32-bit Lua integer (if n > 2147483647, return n - 4294967296).
+      Applied to all 13 bitwise and shift dispatch handlers: AND, ANDI, OR, ORI,
+      XOR, XORI, NOT, SLL, SLLI, SRL, SRLI, SRA, SRAI.
+    - The fix also corrects intermediate register values, not just output values.
+      Without it, a value like 4294967295 in a register would corrupt subsequent
+      arithmetic (e.g. the XOR and SUB steps of an absolute value computation).
+    - 4 new tests including the absolute value program that triggered the bug,
+      verifying correct signed results for negative inputs. 180 tests total.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.31
 Date: 04. 08. 2026
   Bugfixes:

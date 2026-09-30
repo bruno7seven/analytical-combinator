@@ -1515,6 +1515,56 @@ describe("CPU tests", function()
         assert.are.equal(-64, myCpu:get_register("x11"))
     end)
 
+    it("SRAI result is signed (LuaJIT bit library sign-extension fix)", function()
+        -- _arshift(-1, 0) should stay -1, not become 4294967295
+        local code = { "LI x10, -1", "SRAI x11, x10, 0", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(-1, myCpu:get_register("x11"))
+    end)
+
+    it("NOT result is signed (-1 not 4294967295)", function()
+        local code = { "LI x10, 0", "NOT x11, x10", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(-1, myCpu:get_register("x11"))
+    end)
+
+    it("XOR with all-ones mask produces signed result", function()
+        -- XOR of any value with 0xFFFFFFFF flips all bits — same as NOT.
+        -- Result must be in signed 32-bit range, not unsigned.
+        local code = { "LI x10, 0", "LI x11, -1", "XOR x12, x10, x11", "HLT" }
+        local myCpu = cpu.new(code)
+        while not myCpu:is_halted() do myCpu:tick_step() end
+        assert.are.equal(-1, myCpu:get_register("x12"))
+    end)
+
+    it("absolute value program produces correct signed result", function()
+        -- This is the program that originally triggered the bug.
+        -- SRAI x2, x1, 31 produces the sign mask; XOR+SUB gives abs(x1).
+        local function abs_prog(input_val)
+            local code = {
+                "RSIG  x1, iron-plate",
+                "SRAI  x2, x1, 31",
+                "XOR   x1, x1, x2",
+                "SUB   x1, x1, x2",
+                "WSIG  o0, signal-A, x1",
+                "HLT",
+            }
+            local myCpu = cpu.new(code)
+            myCpu:set_input_signals(
+                { ["iron-plate"] = input_val },
+                {}
+            )
+            while not myCpu:is_halted() do myCpu:tick_step() end
+            return myCpu:get_register("o0").count
+        end
+        assert.are.equal(123,  abs_prog(-123))
+        assert.are.equal(123,  abs_prog(123))
+        assert.are.equal(0,    abs_prog(0))
+        assert.are.equal(1000, abs_prog(-1000))
+    end)
+
     it("SRLI does NOT sign-extend on right shift of negative value", function()
         -- SRL of -128 (0xFFFFFF80) >> 1 should give a large positive (zero-fill from left)
         local code = { "ADDI x10, x0, -128", "SRLI x11, x10, 1", "HLT" }
